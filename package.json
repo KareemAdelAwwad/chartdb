@@ -9,8 +9,7 @@
         "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
         "lint:fix": "npm run lint -- --fix",
         "preview": "vite preview",
-        "prepare": "husky",
-        "start": "npm run lint -- --fix && vite build && vite preview"
+        "prepare": "husky"
     },
     "dependencies": {
         "@ai-sdk/openai": "^0.0.51",
