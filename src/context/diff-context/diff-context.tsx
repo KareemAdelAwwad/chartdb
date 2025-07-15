@@ -1,11 +1,11 @@
 import { createContext } from 'react';
-import type { DiffMap } from './types';
 import type { Diagram } from '@/lib/domain/diagram';
 import type { DBTable } from '@/lib/domain/db-table';
 import type { EventEmitter } from 'ahooks/lib/useEventEmitter';
 import type { DBField } from '@/lib/domain/db-field';
 import type { DataType } from '@/lib/data/data-types/data-types';
 import type { DBRelationship } from '@/lib/domain/db-relationship';
+import type { DiffMap } from '@/lib/domain/diff/diff';
 
 export type DiffEventType = 'diff_calculated';
 
@@ -14,19 +14,22 @@ export type DiffEventBase<T extends DiffEventType, D> = {
     data: D;
 };
 
+export type DiffCalculatedData = {
+    tablesAdded: DBTable[];
+    fieldsAdded: Map<string, DBField[]>;
+    relationshipsAdded: DBRelationship[];
+};
+
 export type DiffCalculatedEvent = DiffEventBase<
     'diff_calculated',
-    {
-        tablesAdded: DBTable[];
-        fieldsAdded: Map<string, DBField[]>;
-        relationshipsAdded: DBRelationship[];
-    }
+    DiffCalculatedData
 >;
 
 export type DiffEvent = DiffCalculatedEvent;
 
 export interface DiffContext {
     newDiagram: Diagram | null;
+    originalDiagram: Diagram | null;
     diffMap: DiffMap;
     hasDiff: boolean;
 
@@ -43,6 +46,7 @@ export interface DiffContext {
     checkIfNewTable: ({ tableId }: { tableId: string }) => boolean;
     checkIfTableRemoved: ({ tableId }: { tableId: string }) => boolean;
     getTableNewName: ({ tableId }: { tableId: string }) => string | null;
+    getTableNewColor: ({ tableId }: { tableId: string }) => string | null;
 
     // field diff
     checkIfFieldHasChange: ({

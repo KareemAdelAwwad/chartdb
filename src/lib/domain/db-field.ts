@@ -4,8 +4,8 @@ import type { ColumnInfo } from '../data/import-metadata/metadata-types/column-i
 import type { AggregatedIndexInfo } from '../data/import-metadata/metadata-types/index-info';
 import type { PrimaryKeyInfo } from '../data/import-metadata/metadata-types/primary-key-info';
 import type { TableInfo } from '../data/import-metadata/metadata-types/table-info';
-import { generateId } from '../utils';
 import { schemaNameToDomainSchemaName } from './db-schema';
+import { generateId } from '../utils';
 
 export interface DBField {
     id: string;
@@ -14,13 +14,14 @@ export interface DBField {
     primaryKey: boolean;
     unique: boolean;
     nullable: boolean;
+    increment?: boolean | null;
     createdAt: number;
-    characterMaximumLength?: string;
-    precision?: number;
-    scale?: number;
-    default?: string;
-    collation?: string;
-    comments?: string;
+    characterMaximumLength?: string | null;
+    precision?: number | null;
+    scale?: number | null;
+    default?: string | null;
+    collation?: string | null;
+    comments?: string | null;
 }
 
 export const dbFieldSchema: z.ZodType<DBField> = z.object({
@@ -30,13 +31,14 @@ export const dbFieldSchema: z.ZodType<DBField> = z.object({
     primaryKey: z.boolean(),
     unique: z.boolean(),
     nullable: z.boolean(),
+    increment: z.boolean().or(z.null()).optional(),
     createdAt: z.number(),
-    characterMaximumLength: z.string().optional(),
-    precision: z.number().optional(),
-    scale: z.number().optional(),
-    default: z.string().optional(),
-    collation: z.string().optional(),
-    comments: z.string().optional(),
+    characterMaximumLength: z.string().or(z.null()).optional(),
+    precision: z.number().or(z.null()).optional(),
+    scale: z.number().or(z.null()).optional(),
+    default: z.string().or(z.null()).optional(),
+    collation: z.string().or(z.null()).optional(),
+    comments: z.string().or(z.null()).optional(),
 });
 
 export const createFieldsFromMetadata = ({
@@ -92,7 +94,7 @@ export const createFieldsFromMetadata = ({
                     idx.columns.length === 1 &&
                     idx.columns[0].name === col.name
             ),
-            nullable: col.nullable,
+            nullable: Boolean(col.nullable),
             ...(col.character_maximum_length &&
             col.character_maximum_length !== 'null'
                 ? { characterMaximumLength: col.character_maximum_length }

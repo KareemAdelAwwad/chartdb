@@ -1,12 +1,8 @@
 import type { Diagram } from '@/lib/domain/diagram';
-import type {
-    ChartDBDiff,
-    DiffMap,
-    DiffObject,
-    FieldDiffAttribute,
-} from '../types';
 import type { DBField } from '@/lib/domain/db-field';
 import type { DBIndex } from '@/lib/domain/db-index';
+import type { ChartDBDiff, DiffMap, DiffObject } from '@/lib/domain/diff/diff';
+import type { FieldDiffAttribute } from '@/lib/domain/diff/field-diff';
 
 export function getDiffMapKey({
     diffObject,
@@ -78,7 +74,7 @@ function compareTables({
                 {
                     object: 'table',
                     type: 'added',
-                    tableId: newTable.id,
+                    tableAdded: newTable,
                 }
             );
             changedTables.set(newTable.id, true);
@@ -100,7 +96,7 @@ function compareTables({
         }
     }
 
-    // Check for table name and comments changes
+    // Check for table name, comments and color changes
     for (const oldTable of oldTables) {
         const newTable = newTables.find((t) => t.id === oldTable.id);
 
@@ -117,7 +113,7 @@ function compareTables({
                     object: 'table',
                     type: 'changed',
                     tableId: oldTable.id,
-                    attributes: 'name',
+                    attribute: 'name',
                     newValue: newTable.name,
                     oldValue: oldTable.name,
                 }
@@ -126,7 +122,10 @@ function compareTables({
             changedTables.set(oldTable.id, true);
         }
 
-        if (oldTable.comments !== newTable.comments) {
+        if (
+            (oldTable.comments || newTable.comments) &&
+            oldTable.comments !== newTable.comments
+        ) {
             diffMap.set(
                 getDiffMapKey({
                     diffObject: 'table',
@@ -137,9 +136,29 @@ function compareTables({
                     object: 'table',
                     type: 'changed',
                     tableId: oldTable.id,
-                    attributes: 'comments',
+                    attribute: 'comments',
                     newValue: newTable.comments,
                     oldValue: oldTable.comments,
+                }
+            );
+
+            changedTables.set(oldTable.id, true);
+        }
+
+        if (oldTable.color !== newTable.color) {
+            diffMap.set(
+                getDiffMapKey({
+                    diffObject: 'table',
+                    objectId: oldTable.id,
+                    attribute: 'color',
+                }),
+                {
+                    object: 'table',
+                    type: 'changed',
+                    tableId: oldTable.id,
+                    attribute: 'color',
+                    newValue: newTable.color,
+                    oldValue: oldTable.color,
                 }
             );
 
@@ -218,7 +237,7 @@ function compareFields({
                 {
                     object: 'field',
                     type: 'added',
-                    fieldId: newField.id,
+                    newField,
                     tableId,
                 }
             );
@@ -303,7 +322,10 @@ function compareFieldProperties({
         changedAttributes.push('nullable');
     }
 
-    if (oldField.comments !== newField.comments) {
+    if (
+        (newField.comments || oldField.comments) &&
+        oldField.comments !== newField.comments
+    ) {
         changedAttributes.push('comments');
     }
 
@@ -313,16 +335,16 @@ function compareFieldProperties({
                 getDiffMapKey({
                     diffObject: 'field',
                     objectId: oldField.id,
-                    attribute: attribute,
+                    attribute,
                 }),
                 {
                     object: 'field',
                     type: 'changed',
                     fieldId: oldField.id,
                     tableId,
-                    attributes: attribute,
-                    oldValue: oldField[attribute],
-                    newValue: newField[attribute],
+                    attribute,
+                    oldValue: oldField[attribute] ?? '',
+                    newValue: newField[attribute] ?? '',
                 }
             );
         }
@@ -356,7 +378,7 @@ function compareIndexes({
                 {
                     object: 'index',
                     type: 'added',
-                    indexId: newIndex.id,
+                    newIndex,
                     tableId,
                 }
             );
@@ -408,7 +430,7 @@ function compareRelationships({
                 {
                     object: 'relationship',
                     type: 'added',
-                    relationshipId: newRelationship.id,
+                    newRelationship,
                 }
             );
         }

@@ -29,7 +29,7 @@ import {
     SortableContext,
     verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { ColorPicker } from './color-picker/color-picker';
+import { ColorPicker } from '@/components/color-picker/color-picker';
 
 type AccordionItemValue = 'fields' | 'indexes';
 
@@ -244,7 +244,7 @@ export const TableListItemContent: React.FC<TableListItemContentProps> = ({
                     </AccordionTrigger>
                     <AccordionContent className="pb-0 pt-1">
                         <Textarea
-                            value={table.comments}
+                            value={table.comments ?? undefined}
                             onChange={(e) =>
                                 updateTable(table.id, {
                                     comments: e.target.value,

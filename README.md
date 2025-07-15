@@ -30,8 +30,8 @@
   <a href="https://discord.gg/QeFwyWSKwC">
     <img src="https://img.shields.io/discord/1277047413705670678?color=5865F2&label=Discord&logo=discord&logoColor=white" alt="Discord community channel" />
   </a>
-  <a href="https://x.com/chartdb_io">
-    <img src="https://img.shields.io/twitter/follow/ChartDB?style=social"/>
+  <a href="https://x.com/intent/follow?screen_name=jonathanfishner">
+    <img src="https://img.shields.io/twitter/follow/jonathanfishner?style=social"/>
   </a>
 
 </h4>
@@ -49,13 +49,13 @@ Instantly visualize your database schema with a single **"Smart Query."** Custom
 
 **What it does**:
 
--   **Instant Schema Import**
-    Run a single query to instantly retrieve your database schema as JSON. This makes it incredibly fast to visualize your database schema, whether for documentation, team discussions, or simply understanding your data better.
+- **Instant Schema Import**
+  Run a single query to instantly retrieve your database schema as JSON. This makes it incredibly fast to visualize your database schema, whether for documentation, team discussions, or simply understanding your data better.
 
--   **AI-Powered Export for Easy Migration**
-    Our AI-driven export feature allows you to generate the DDL script in the dialect of your choice. Whether you’re migrating from MySQL to PostgreSQL or from SQLite to MariaDB, ChartDB simplifies the process by providing the necessary scripts tailored to your target database.
--   **Interactive Editing**
-    Fine-tune your database schema using our intuitive editor. Easily make adjustments or annotations to better visualize complex structures.
+- **AI-Powered Export for Easy Migration**
+  Our AI-driven export feature allows you to generate the DDL script in the dialect of your choice. Whether you're migrating from MySQL to PostgreSQL or from SQLite to MariaDB, ChartDB simplifies the process by providing the necessary scripts tailored to your target database.
+- **Interactive Editing**
+  Fine-tune your database schema using our intuitive editor. Easily make adjustments or annotations to better visualize complex structures.
 
 ### Status
 
@@ -63,13 +63,13 @@ ChartDB is currently in Public Beta. Star and watch this repository to get notif
 
 ### Supported Databases
 
--   ✅ PostgreSQL (<img src="./src/assets/postgresql_logo_2.png" width="15"/> + <img src="./src/assets/supabase.png" alt="Supabase" width="15"/> + <img src="./src/assets/timescale.png" alt="Timescale" width="15"/> )
--   ✅ MySQL
--   ✅ SQL Server
--   ✅ MariaDB
--   ✅ SQLite
--   ✅ CockroachDB
--   ✅ ClickHouse
+- ✅ PostgreSQL (<img src="./src/assets/postgresql_logo_2.png" width="15"/> + <img src="./src/assets/supabase.png" alt="Supabase" width="15"/> + <img src="./src/assets/timescale.png" alt="Timescale" width="15"/> )
+- ✅ MySQL
+- ✅ SQL Server
+- ✅ MariaDB
+- ✅ SQLite (<img src="./src/assets/sqlite_logo_2.png" width="15"/> + <img src="./src/assets/cloudflare_d1.png" alt="Cloudflare D1" width="15"/> Cloudflare D1)
+- ✅ CockroachDB
+- ✅ ClickHouse
 
 ## Getting Started
 
@@ -91,17 +91,19 @@ npm run build
 
 Or like this if you want to have AI capabilities:
 
-```
+```bash
 npm install
 VITE_OPENAI_API_KEY=<YOUR_OPEN_AI_KEY> npm run build
 ```
 
 ### Run the Docker Container
+
 ```bash
 docker run -e OPENAI_API_KEY=<YOUR_OPEN_AI_KEY> -p 8080:80 ghcr.io/chartdb/chartdb:latest
 ```
 
 #### Build and Run locally
+
 ```bash
 docker build -t chartdb .
 docker run -e OPENAI_API_KEY=<YOUR_OPEN_AI_KEY> -p 8080:80 chartdb
@@ -122,6 +124,8 @@ docker run \
   -e LLM_MODEL_NAME=<YOUR_MODEL_NAME> \
   -p 8080:80 chartdb
 ```
+
+> **Privacy Note:** ChartDB includes privacy-focused analytics via Fathom Analytics. You can disable this by adding `-e DISABLE_ANALYTICS=true` to the run command or `--build-arg VITE_DISABLE_ANALYTICS=true` when building.
 
 > **Note:** You must configure either Option 1 (OpenAI API key) OR Option 2 (Custom endpoint and model name) for AI capabilities to work. Do not mix the two options.
 
@@ -145,9 +149,9 @@ VITE_LLM_MODEL_NAME=Qwen/Qwen2.5-32B-Instruct-AWQ
 
 ## 💚 Community & Support
 
--   [Discord](https://discord.gg/QeFwyWSKwC) (For live discussion with the community and the ChartDB team)
--   [GitHub Issues](https://github.com/chartdb/chartdb/issues) (For any bugs and errors you encounter using ChartDB)
--   [Twitter](https://x.com/chartdb_io) (Get news fast)
+- [Discord](https://discord.gg/QeFwyWSKwC) (For live discussion with the community and the ChartDB team)
+- [GitHub Issues](https://github.com/chartdb/chartdb/issues) (For any bugs and errors you encounter using ChartDB)
+- [Twitter](https://x.com/intent/follow?screen_name=jonathanfishner) (Get news fast)
 
 ## Contributing
 
