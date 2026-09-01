@@ -2,17 +2,25 @@ import type { LanguageMetadata, LanguageTranslation } from '../types';
 
 export const ar: LanguageTranslation = {
     translation: {
+        editor_sidebar: {
+            new_diagram: 'جديد',
+            browse: 'فتح',
+            tables: 'الجداول',
+            refs: 'المراجع',
+            dependencies: 'التبعيات',
+            custom_types: 'الأنواع المخصصة',
+            visuals: 'مرئيات',
+        },
         menu: {
-            file: {
-                file: 'ملف',
-                new: 'جديد',
-                open: 'فتح',
+            actions: {
+                actions: 'الإجراءات',
+                new: 'جديد...',
+                browse: 'جميع قواعد البيانات...',
                 save: 'حفظ',
                 import: 'استيراد قاعدة بيانات',
                 export_sql: 'SQL تصدير',
                 export_as: 'تصدير كـ',
-                delete_diagram: 'حذف الرسم البياني',
-                exit: 'خروج',
+                delete_diagram: 'حذف',
             },
             edit: {
                 edit: 'تحرير',
@@ -26,7 +34,10 @@ export const ar: LanguageTranslation = {
                 hide_sidebar: 'إخفاء الشريط الجانبي',
                 hide_cardinality: 'إخفاء الكاردينالية',
                 show_cardinality: 'إظهار الكاردينالية',
+                hide_field_attributes: 'إخفاء خصائص الحقل',
+                show_field_attributes: 'إظهار خصائص الحقل',
                 zoom_on_scroll: 'تكبير/تصغير عند التمرير',
+                show_views: 'عروض قاعدة البيانات',
                 theme: 'المظهر',
                 show_dependencies: 'إظهار الاعتمادات',
                 hide_dependencies: 'إخفاء الاعتمادات',
@@ -63,20 +74,11 @@ export const ar: LanguageTranslation = {
         },
 
         reorder_diagram_alert: {
-            title: 'إعادة ترتيب الرسم البياني',
+            title: 'ترتيب تلقائي للرسم البياني',
             description:
                 'هذا الإجراء سيقوم بإعادة ترتيب الجداول في المخطط بشكل تلقائي. هل تريد المتابعة؟',
-            reorder: 'إعادة ترتيب',
+            reorder: 'ترتيب تلقائي',
             cancel: 'إلغاء',
-        },
-
-        multiple_schemas_alert: {
-            title: 'مخططات متعددة',
-            description:
-                '{{formattedSchemas}} :مخططات في هذا الرسم البياني. يتم حاليا عرض {{schemasCount}} هناك',
-            dont_show_again: 'لا تظهره مجدداً',
-            change_schema: 'تغيير',
-            none: 'لا شيء',
         },
 
         copy_to_clipboard_toast: {
@@ -113,14 +115,11 @@ export const ar: LanguageTranslation = {
         copied: '!تم النسخ',
 
         side_panel: {
-            schema: ':المخطط',
-            filter_by_schema: 'تصفية حسب المخطط',
-            search_schema: '...بحث في المخطط',
-            no_schemas_found: '.لم يتم العثور على مخططات',
             view_all_options: '...عرض جميع الخيارات',
             tables_section: {
                 tables: 'الجداول',
                 add_table: 'إضافة جدول',
+                add_view: 'إضافة عرض',
                 filter: 'تصفية',
                 collapse: 'طي الكل',
                 // TODO: Translate
@@ -129,16 +128,20 @@ export const ar: LanguageTranslation = {
                 // TODO: Translate
                 show_list: 'Show Table List',
                 show_dbml: 'Show DBML Editor',
+                all_hidden: 'جميع الجداول مخفية',
+                show_all: 'عرض الكل',
 
                 table: {
                     fields: 'الحقول',
                     nullable: 'يمكن ان يكون فارغاً؟',
                     primary_key: 'المفتاح الأساسي',
                     indexes: 'الفهارس',
+                    check_constraints: 'قيود التحقق',
                     comments: 'تعليقات',
                     no_comments: 'لا توجد تعليقات',
                     add_field: 'إضافة حقل',
                     add_index: 'إضافة فهرس',
+                    add_check: 'إضافة تحقق',
                     index_select_fields: 'حدد الحقول',
                     no_types_found: 'لا يوجد أنواع',
                     field_name: 'الإسم',
@@ -146,17 +149,28 @@ export const ar: LanguageTranslation = {
                     field_actions: {
                         title: 'خصائص الحقل',
                         unique: 'فريد',
+                        auto_increment: 'زيادة تلقائية',
                         comments: 'تعليقات',
                         no_comments: 'لا يوجد تعليقات',
                         delete_field: 'حذف الحقل',
                         // TODO: Translate
                         character_length: 'Max Length',
+                        precision: 'الدقة',
+                        scale: 'النطاق',
+                        default_value: 'Default Value',
+                        no_default: 'No default',
                     },
                     index_actions: {
                         title: 'خصائص الفهرس',
                         name: 'الإسم',
                         unique: 'فريد',
+                        index_type: 'نوع الفهرس',
                         delete_index: 'حذف الفهرس',
+                    },
+                    check_constraint_actions: {
+                        title: 'قيد التحقق',
+                        expression: 'التعبير',
+                        delete: 'حذف قيد التحقق',
                     },
                     table_actions: {
                         title: 'إجراءات الجدول',
@@ -172,31 +186,27 @@ export const ar: LanguageTranslation = {
                     description: 'أنشئ جدولاً للبدء',
                 },
             },
-            relationships_section: {
-                relationships: 'العلاقات',
+            refs_section: {
+                refs: 'المراجع',
                 filter: 'تصفية',
-                add_relationship: 'إضافة علاقة',
                 collapse: 'طي الكل',
+                add_relationship: 'إضافة علاقة',
+                relationships: 'العلاقات',
+                dependencies: 'الاعتمادات',
                 relationship: {
+                    relationship: 'العلاقة',
                     primary: 'الجدول الأساسي',
                     foreign: 'الجدول المرتبط',
                     cardinality: 'الكاردينالية',
                     delete_relationship: 'حذف',
+                    switch_tables: 'تبديل الجداول',
                     relationship_actions: {
                         title: 'إجراءات',
                         delete_relationship: 'حذف',
                     },
                 },
-                empty_state: {
-                    title: 'لا توجد علاقات',
-                    description: 'إنشئ علاقة لربط الجداول',
-                },
-            },
-            dependencies_section: {
-                dependencies: 'الاعتمادات',
-                filter: 'تصفية',
-                collapse: 'طي الكل',
                 dependency: {
+                    dependency: 'الاعتماد',
                     table: 'الجدول',
                     dependent_table: 'عرض الاعتمادات',
                     delete_dependency: 'حذف',
@@ -206,56 +216,86 @@ export const ar: LanguageTranslation = {
                     },
                 },
                 empty_state: {
-                    title: 'لا توجد اعتمادات',
-                    description: 'إنشاء اعتماد للبدء',
+                    title: 'لا توجد علاقات',
+                    description: 'إنشاء علاقة للبدء',
                 },
             },
 
-            // TODO: Translate
             areas_section: {
-                areas: 'Areas',
-                add_area: 'Add Area',
-                filter: 'Filter',
-                clear: 'Clear Filter',
-                no_results: 'No areas found matching your filter.',
+                areas: 'المناطق',
+                add_area: 'إضافة منطقة',
+                filter: 'تصفية',
+                clear: 'مسح التصفية',
+                no_results: 'لم يتم العثور على مناطق مطابقة للتصفية.',
 
                 area: {
                     area_actions: {
-                        title: 'Area Actions',
-                        edit_name: 'Edit Name',
-                        delete_area: 'Delete Area',
+                        title: 'إجراءات المنطقة',
+                        edit_name: 'تحرير الاسم',
+                        delete_area: 'حذف المنطقة',
                     },
                 },
                 empty_state: {
-                    title: 'No areas',
-                    description: 'Create an area to get started',
+                    title: 'لا توجد مناطق',
+                    description: 'أنشئ منطقة للبدء',
                 },
             },
 
-            // TODO: Translate
-            custom_types_section: {
-                custom_types: 'Custom Types',
-                filter: 'Filter',
-                clear: 'Clear Filter',
-                no_results: 'No custom types found matching your filter.',
+            visuals_section: {
+                visuals: 'مرئيات',
+                tabs: {
+                    areas: 'المناطق',
+                    notes: 'ملاحظات',
+                },
+            },
+
+            notes_section: {
+                filter: 'تصفية',
+                add_note: 'إضافة ملاحظة',
+                no_results: 'لم يتم العثور على ملاحظات',
+                clear: 'مسح التصفية',
                 empty_state: {
-                    title: 'No custom types',
+                    title: 'لا توجد ملاحظات',
+                    description: 'أنشئ ملاحظة لإضافة تعليقات نصية على اللوحة',
+                },
+                note: {
+                    empty_note: 'ملاحظة فارغة',
+                    note_actions: {
+                        title: 'إجراءات الملاحظة',
+                        edit_content: 'تحرير المحتوى',
+                        delete_note: 'حذف الملاحظة',
+                    },
+                },
+            },
+
+            custom_types_section: {
+                custom_types: 'الأنواع المخصصة',
+                filter: 'تصفية',
+                clear: 'مسح التصفية',
+                no_results: 'لم يتم العثور على أنواع مخصصة مطابقة للتصفية.',
+                new_type: 'نوع جديد',
+                empty_state: {
+                    title: 'لا توجد أنواع مخصصة',
                     description:
-                        'Custom types will appear here when they are available in your database',
+                        'ستظهر الأنواع المخصصة هنا عندما تكون متاحة في قاعدة البيانات الخاصة بك',
                 },
                 custom_type: {
-                    kind: 'Kind',
-                    enum_values: 'Enum Values',
-                    composite_fields: 'Fields',
-                    no_fields: 'No fields defined',
-                    field_name_placeholder: 'Field name',
-                    field_type_placeholder: 'Select type',
-                    add_field: 'Add Field',
+                    kind: 'النوع',
+                    enum_values: 'قيم التعداد',
+                    composite_fields: 'الحقول',
+                    no_fields: 'لم يتم تحديد حقول',
+                    no_values: 'لم يتم تحديد قيم التعداد',
+                    field_name_placeholder: 'اسم الحقل',
+                    field_type_placeholder: 'اختر النوع',
+                    add_field: 'إضافة حقل',
+                    no_fields_tooltip: 'لم يتم تحديد حقول لهذا النوع المخصص',
                     custom_type_actions: {
-                        title: 'Actions',
-                        delete_custom_type: 'Delete',
+                        title: 'إجراءات',
+                        highlight_fields: 'تمييز الحقول',
+                        delete_custom_type: 'حذف',
+                        clear_field_highlight: 'إزالة التمييز',
                     },
-                    delete_custom_type: 'Delete Type',
+                    delete_custom_type: 'حذف النوع',
                 },
             },
         },
@@ -267,8 +307,12 @@ export const ar: LanguageTranslation = {
             show_all: 'عرض الكل',
             undo: 'تراجع',
             redo: 'إعادة',
-            reorder_diagram: 'إعادة ترتيب الرسم البياني',
+            reorder_diagram: 'ترتيب تلقائي للرسم البياني',
             highlight_overlapping_tables: 'تمييز الجداول المتداخلة',
+            filter: 'تصفية الجداول',
+            clear_custom_type_highlight: 'Clear highlight for "{{typeName}}"',
+            custom_type_highlight_tooltip:
+                'Highlighting "{{typeName}}" - Click to clear',
         },
 
         new_diagram_dialog: {
@@ -299,13 +343,13 @@ export const ar: LanguageTranslation = {
             cancel: 'إلغاء',
             import_from_file: 'استيراد من ملف',
             back: 'رجوع',
-            empty_diagram: 'مخطط فارغ',
+            empty_diagram: 'قاعدة بيانات فارغة',
             continue: 'متابعة',
             import: 'استيراد',
         },
 
         open_diagram_dialog: {
-            title: 'فتح مخطط',
+            title: 'فتح قاعدة بيانات',
             description: 'اختر مخططًا لفتحه من القائمة ادناه',
             table_columns: {
                 name: 'الإسم',
@@ -315,6 +359,13 @@ export const ar: LanguageTranslation = {
             },
             cancel: 'إلغاء',
             open: 'فتح',
+            new_database: 'قاعدة بيانات جديدة',
+
+            diagram_actions: {
+                open: 'فتح',
+                duplicate: 'تكرار',
+                delete: 'حذف',
+            },
         },
 
         export_sql_dialog: {
@@ -372,10 +423,9 @@ export const ar: LanguageTranslation = {
         export_image_dialog: {
             title: 'تصدير الصورة',
             description: ':اختر عامل المقياس للتصدير',
-            scale_1x: '1x عادي',
-            scale_2x: '2x (موصى به)',
-            scale_3x: '3x',
-            scale_4x: '4x',
+            scale_1x: '1x (جودة منخفضة)',
+            scale_2x: '2x (جودة عادية)',
+            scale_4x: '4x (أفضل جودة)',
             cancel: 'إلغاء',
             export: 'تصدير',
             // TODO: Translate
@@ -399,6 +449,13 @@ export const ar: LanguageTranslation = {
             description: '"{{tableName}}" تحديث مخطط الجدول',
             cancel: 'إلغاء',
             confirm: 'تغيير',
+        },
+        create_table_schema_dialog: {
+            title: 'إنشاء مخطط جديد',
+            description:
+                'لا توجد مخططات حتى الآن. قم بإنشاء أول مخطط لتنظيم جداولك.',
+            create: 'إنشاء',
+            cancel: 'إلغاء',
         },
 
         star_us_dialog: {
@@ -453,9 +510,11 @@ export const ar: LanguageTranslation = {
 
         canvas_context_menu: {
             new_table: 'جدول جديد',
+            new_view: 'عرض جديد',
             new_relationship: 'علاقة جديدة',
             // TODO: Translate
-            new_area: 'New Area',
+            new_area: 'منطقة جديدة',
+            new_note: 'ملاحظة جديدة',
         },
 
         table_node_context_menu: {
@@ -463,6 +522,24 @@ export const ar: LanguageTranslation = {
             duplicate_table: 'نسخ الجدول',
             delete_table: 'حذف الجدول',
             add_relationship: 'Add Relationship', // TODO: Translate
+            move_to_area: 'نقل إلى منطقة',
+            no_area: 'بدون منطقة',
+        },
+
+        canvas: {
+            all_tables_hidden: 'جميع الجداول مخفية',
+            show_all_tables: 'عرض الكل',
+        },
+
+        canvas_filter: {
+            title: 'تصفية الجداول',
+            search_placeholder: 'البحث في الجداول...',
+            group_by_schema: 'تجميع حسب المخطط',
+            group_by_area: 'تجميع حسب المنطقة',
+            no_tables_found: 'لم يتم العثور على جداول',
+            empty_diagram_description: 'أنشئ جدولاً للبدء',
+            no_tables_description: 'جرب تعديل البحث أو التصفية',
+            clear_filter: 'مسح التصفية',
         },
 
         snap_to_grid_tooltip: '({{key}} مغنظة الشبكة (اضغط مع الاستمرار على',
@@ -474,6 +551,8 @@ export const ar: LanguageTranslation = {
         language_select: {
             change_language: 'اللغة',
         },
+        on: 'تشغيل',
+        off: 'إيقاف',
     },
 };
 

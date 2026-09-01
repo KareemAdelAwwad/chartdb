@@ -20,8 +20,6 @@ import type { ExportImageDialogProps } from '@/dialogs/export-image-dialog/expor
 import { ExportImageDialog } from '@/dialogs/export-image-dialog/export-image-dialog';
 import { ExportDiagramDialog } from '@/dialogs/export-diagram-dialog/export-diagram-dialog';
 import { ImportDiagramDialog } from '@/dialogs/import-diagram-dialog/import-diagram-dialog';
-import type { ImportDBMLDialogProps } from '@/dialogs/import-dbml-dialog/import-dbml-dialog';
-import { ImportDBMLDialog } from '@/dialogs/import-dbml-dialog/import-dbml-dialog';
 
 export const DialogProvider: React.FC<React.PropsWithChildren> = ({
     children,
@@ -103,8 +101,12 @@ export const DialogProvider: React.FC<React.PropsWithChildren> = ({
         });
     const openImportDatabaseDialogHandler: DialogContext['openImportDatabaseDialog'] =
         useCallback(
-            ({ databaseType }) => {
-                setImportDatabaseDialogParams({ databaseType });
+            ({ databaseType, importMethods, initialImportMethod }) => {
+                setImportDatabaseDialogParams({
+                    databaseType,
+                    importMethods,
+                    initialImportMethod,
+                });
                 setOpenImportDatabaseDialog(true);
             },
             [setOpenImportDatabaseDialog]
@@ -132,11 +134,6 @@ export const DialogProvider: React.FC<React.PropsWithChildren> = ({
     const [openImportDiagramDialog, setOpenImportDiagramDialog] =
         useState(false);
 
-    // Import DBML dialog
-    const [openImportDBMLDialog, setOpenImportDBMLDialog] = useState(false);
-    const [importDBMLDialogParams, setImportDBMLDialogParams] =
-        useState<Omit<ImportDBMLDialogProps, 'dialog'>>();
-
     return (
         <dialogContext.Provider
             value={{
@@ -151,8 +148,9 @@ export const DialogProvider: React.FC<React.PropsWithChildren> = ({
                 closeCreateRelationshipDialog: () =>
                     setOpenCreateRelationshipDialog(false),
                 openImportDatabaseDialog: openImportDatabaseDialogHandler,
-                closeImportDatabaseDialog: () =>
-                    setOpenImportDatabaseDialog(false),
+                closeImportDatabaseDialog: () => {
+                    setOpenImportDatabaseDialog(false);
+                },
                 openTableSchemaDialog: openTableSchemaDialogHandler,
                 closeTableSchemaDialog: () => setOpenTableSchemaDialog(false),
                 openStarUsDialog: () => setOpenStarUsDialog(true),
@@ -165,11 +163,6 @@ export const DialogProvider: React.FC<React.PropsWithChildren> = ({
                 openImportDiagramDialog: () => setOpenImportDiagramDialog(true),
                 closeImportDiagramDialog: () =>
                     setOpenImportDiagramDialog(false),
-                openImportDBMLDialog: (params) => {
-                    setImportDBMLDialogParams(params);
-                    setOpenImportDBMLDialog(true);
-                },
-                closeImportDBMLDialog: () => setOpenImportDBMLDialog(false),
             }}
         >
             {children}
@@ -204,10 +197,6 @@ export const DialogProvider: React.FC<React.PropsWithChildren> = ({
             />
             <ExportDiagramDialog dialog={{ open: openExportDiagramDialog }} />
             <ImportDiagramDialog dialog={{ open: openImportDiagramDialog }} />
-            <ImportDBMLDialog
-                dialog={{ open: openImportDBMLDialog }}
-                {...importDBMLDialogParams}
-            />
         </dialogContext.Provider>
     );
 };

@@ -2,17 +2,25 @@ import type { LanguageMetadata, LanguageTranslation } from '../types';
 
 export const gu: LanguageTranslation = {
     translation: {
+        editor_sidebar: {
+            new_diagram: 'નવું',
+            browse: 'ખોલો',
+            tables: 'ટેબલો',
+            refs: 'રેફ્સ',
+            dependencies: 'નિર્ભરતાઓ',
+            custom_types: 'કસ્ટમ ટાઇપ',
+            visuals: 'Visuals',
+        },
         menu: {
-            file: {
-                file: 'ફાઇલ',
-                new: 'નવું',
-                open: 'ખોલો',
+            actions: {
+                actions: 'ક્રિયાઓ',
+                new: 'નવું...',
+                browse: 'બધા ડેટાબેસ...',
                 save: 'સાચવો',
                 import: 'ડેટાબેસ આયાત કરો',
                 export_sql: 'SQL નિકાસ કરો',
                 export_as: 'રૂપે નિકાસ કરો',
-                delete_diagram: 'ડાયાગ્રામ કાઢી નાખો',
-                exit: 'બહાર જાઓ',
+                delete_diagram: 'કાઢી નાખો',
             },
             edit: {
                 edit: 'ફેરફાર',
@@ -26,7 +34,10 @@ export const gu: LanguageTranslation = {
                 hide_sidebar: 'સાઇડબાર છુપાવો',
                 hide_cardinality: 'કાર્ડિનાલિટી છુપાવો',
                 show_cardinality: 'કાર્ડિનાલિટી બતાવો',
+                hide_field_attributes: 'ફીલ્ડ અટ્રિબ્યુટ્સ છુપાવો',
+                show_field_attributes: 'ફીલ્ડ અટ્રિબ્યુટ્સ બતાવો',
                 zoom_on_scroll: 'સ્ક્રોલ પર ઝૂમ કરો',
+                show_views: 'ડેટાબેઝ વ્યૂઝ',
                 theme: 'થિમ',
                 show_dependencies: 'નિર્ભરતાઓ બતાવો',
                 hide_dependencies: 'નિર્ભરતાઓ છુપાવો',
@@ -64,20 +75,11 @@ export const gu: LanguageTranslation = {
         },
 
         reorder_diagram_alert: {
-            title: 'ડાયાગ્રામ ફરી વ્યવસ્થિત કરો',
+            title: 'ડાયાગ્રામ ઑટોમેટિક ગોઠવો',
             description:
                 'આ ક્રિયા ડાયાગ્રામમાં બધી ટેબલ્સને ફરીથી વ્યવસ્થિત કરશે. શું તમે ચાલુ રાખવા માંગો છો?',
-            reorder: 'ફરી વ્યવસ્થિત કરો',
+            reorder: 'ઑટોમેટિક ગોઠવો',
             cancel: 'રદ કરો',
-        },
-
-        multiple_schemas_alert: {
-            title: 'કઈંક વધારે સ્કીમા',
-            description:
-                '{{schemasCount}} સ્કીમા આ ડાયાગ્રામમાં છે. હાલમાં દર્શાવેલ છે: {{formattedSchemas}}.',
-            dont_show_again: 'ફરીથી ન બતાવો',
-            change_schema: 'બદલો',
-            none: 'કઈ નહીં',
         },
 
         copy_to_clipboard_toast: {
@@ -114,14 +116,11 @@ export const gu: LanguageTranslation = {
         copied: 'નકલ થયું!',
 
         side_panel: {
-            schema: 'સ્કીમા:',
-            filter_by_schema: 'સ્કીમા દ્વારા ફિલ્ટર કરો',
-            search_schema: 'સ્કીમા શોધો...',
-            no_schemas_found: 'કોઈ સ્કીમા મળ્યા નથી.',
             view_all_options: 'બધા વિકલ્પો જુઓ...',
             tables_section: {
                 tables: 'ટેબલ્સ',
                 add_table: 'ટેબલ ઉમેરો',
+                add_view: 'વ્યૂ ઉમેરો',
                 filter: 'ફિલ્ટર',
                 collapse: 'બધાને સકુચિત કરો',
                 // TODO: Translate
@@ -130,6 +129,8 @@ export const gu: LanguageTranslation = {
                 // TODO: Translate
                 show_list: 'Show Table List',
                 show_dbml: 'Show DBML Editor',
+                all_hidden: 'બધી ટેબલ્સ છુપાયેલી છે',
+                show_all: 'બધું બતાવો',
 
                 table: {
                     fields: 'ફીલ્ડ્સ',
@@ -137,10 +138,12 @@ export const gu: LanguageTranslation = {
                     nullable: 'Nullable?',
                     primary_key: 'પ્રાથમિક કી',
                     indexes: 'ઈન્ડેક્સ',
+                    check_constraints: 'ચકાસણી નિયંત્રણો',
                     comments: 'ટિપ્પણીઓ',
                     no_comments: 'કોઈ ટિપ્પણીઓ નથી',
                     add_field: 'ફીલ્ડ ઉમેરો',
                     add_index: 'ઈન્ડેક્સ ઉમેરો',
+                    add_check: 'ચકાસણી ઉમેરો',
                     index_select_fields: 'ફીલ્ડ્સ પસંદ કરો',
                     no_types_found: 'કોઈ પ્રકાર મળ્યા નથી',
                     field_name: 'નામ',
@@ -148,17 +151,29 @@ export const gu: LanguageTranslation = {
                     field_actions: {
                         title: 'ફીલ્ડ લક્ષણો',
                         unique: 'અદ્વિતીય',
+                        auto_increment: 'ઑટો ઇન્ક્રિમેન્ટ',
                         comments: 'ટિપ્પણીઓ',
                         no_comments: 'કોઈ ટિપ્પણીઓ નથી',
                         delete_field: 'ફીલ્ડ કાઢી નાખો',
                         // TODO: Translate
+                        default_value: 'Default Value',
+                        no_default: 'No default',
+                        // TODO: Translate
                         character_length: 'Max Length',
+                        precision: 'ચોકસાઈ',
+                        scale: 'માપ',
                     },
                     index_actions: {
                         title: 'ઇન્ડેક્સ લક્ષણો',
                         name: 'નામ',
                         unique: 'અદ્વિતીય',
+                        index_type: 'ઇન્ડેક્સ પ્રકાર',
                         delete_index: 'ઇન્ડેક્સ કાઢી નાખો',
+                    },
+                    check_constraint_actions: {
+                        title: 'ચકાસણી નિયંત્રણ',
+                        expression: 'અભિવ્યક્તિ',
+                        delete: 'નિયંત્રણ કાઢી નાખો',
                     },
                     table_actions: {
                         title: 'ટેબલ ક્રિયાઓ',
@@ -174,89 +189,118 @@ export const gu: LanguageTranslation = {
                     description: 'શરૂ કરવા માટે એક ટેબલ બનાવો',
                 },
             },
-            relationships_section: {
-                relationships: 'સંબંધો',
+            refs_section: {
+                refs: 'રેફ્સ',
                 filter: 'ફિલ્ટર',
-                add_relationship: 'સંબંધ ઉમેરો',
                 collapse: 'બધાને સકુચિત કરો',
+                add_relationship: 'સંબંધ ઉમેરો',
+                relationships: 'સંબંધો',
+                dependencies: 'નિર્ભરતાઓ',
                 relationship: {
+                    relationship: 'સંબંધ',
                     primary: 'પ્રાથમિક ટેબલ',
-                    foreign: 'સંદર્ભ ટેબલ',
+                    foreign: 'સંબંધિત ટેબલ',
                     cardinality: 'કાર્ડિનાલિટી',
                     delete_relationship: 'કાઢી નાખો',
+                    switch_tables: 'ટેબલ બદલો',
                     relationship_actions: {
                         title: 'ક્રિયાઓ',
                         delete_relationship: 'કાઢી નાખો',
                     },
                 },
-                empty_state: {
-                    title: 'કોઈ સંબંધો નથી',
-                    description: 'ટેબલ્સ કનેક્ટ કરવા માટે એક સંબંધ બનાવો',
-                },
-            },
-            dependencies_section: {
-                dependencies: 'નિર્ભરતાઓ',
-                filter: 'ફિલ્ટર',
-                collapse: 'સિકોડો',
                 dependency: {
+                    dependency: 'નિર્ભરતા',
                     table: 'ટેબલ',
-                    dependent_table: 'આધાર રાખેલું ટેબલ',
-                    delete_dependency: 'નિર્ભરતા કાઢી નાખો',
+                    dependent_table: 'નિર્ભરશીલ વ્યૂ',
+                    delete_dependency: 'કાઢી નાખો',
                     dependency_actions: {
                         title: 'ક્રિયાઓ',
-                        delete_dependency: 'નિર્ભરતા કાઢી નાખો',
+                        delete_dependency: 'કાઢી નાખો',
                     },
                 },
                 empty_state: {
-                    title: 'કોઈ નિર્ભરતાઓ નથી',
-                    description: 'આ વિભાગમાં કોઈ નિર્ભરતા ઉપલબ્ધ નથી.',
+                    title: 'કોઈ સંબંધો નથી',
+                    description: 'શરૂ કરવા માટે એક સંબંધ બનાવો',
                 },
             },
 
-            // TODO: Translate
             areas_section: {
-                areas: 'Areas',
-                add_area: 'Add Area',
-                filter: 'Filter',
-                clear: 'Clear Filter',
-                no_results: 'No areas found matching your filter.',
+                areas: 'વિસ્તારો',
+                add_area: 'વિસ્તાર ઉમેરો',
+                filter: 'ફિલ્ટર',
+                clear: 'ફિલ્ટર સાફ કરો',
+                no_results: 'તમારા ફિલ્ટરને અનુરૂપ કોઈ વિસ્તાર મળ્યો નથી.',
 
                 area: {
                     area_actions: {
-                        title: 'Area Actions',
-                        edit_name: 'Edit Name',
-                        delete_area: 'Delete Area',
+                        title: 'વિસ્તાર ક્રિયાઓ',
+                        edit_name: 'નામ સંપાદિત કરો',
+                        delete_area: 'વિસ્તાર કાઢી નાખો',
                     },
                 },
                 empty_state: {
-                    title: 'No areas',
-                    description: 'Create an area to get started',
+                    title: 'કોઈ વિસ્તાર નથી',
+                    description: 'શરૂ કરવા માટે વિસ્તાર બનાવો',
                 },
             },
-            // TODO: Translate
-            custom_types_section: {
-                custom_types: 'Custom Types',
-                filter: 'Filter',
-                clear: 'Clear Filter',
-                no_results: 'No custom types found matching your filter.',
+
+            visuals_section: {
+                visuals: 'Visuals',
+                tabs: {
+                    areas: 'વિસ્તારો',
+                    notes: 'નોંધો',
+                },
+            },
+
+            notes_section: {
+                filter: 'ફિલ્ટર',
+                add_note: 'નોંધ ઉમેરો',
+                no_results: 'કોઈ નોંધો મળી નથી',
+                clear: 'ફિલ્ટર સાફ કરો',
                 empty_state: {
-                    title: 'No custom types',
+                    title: 'કોઈ નોંધો નથી',
                     description:
-                        'Custom types will appear here when they are available in your database',
+                        'કેનવાસ પર ટેક્સ્ટ એનોટેશન ઉમેરવા માટે નોંધ બનાવો',
+                },
+                note: {
+                    empty_note: 'ખાલી નોંધ',
+                    note_actions: {
+                        title: 'નોંધ ક્રિયાઓ',
+                        edit_content: 'સામગ્રી સંપાદિત કરો',
+                        delete_note: 'નોંધ કાઢી નાખો',
+                    },
+                },
+            },
+
+            custom_types_section: {
+                custom_types: 'કસ્ટમ પ્રકાર',
+                filter: 'ફિલ્ટર',
+                clear: 'ફિલ્ટર સાફ કરો',
+                no_results: 'તમારા ફિલ્ટરને અનુરૂપ કોઈ કસ્ટમ પ્રકાર મળ્યો નથી.',
+                new_type: 'નવો પ્રકાર',
+                empty_state: {
+                    title: 'કોઈ કસ્ટમ પ્રકાર નથી',
+                    description:
+                        'જ્યારે તમારા ડેટાબેસમાં ઉપલબ્ધ હશે ત્યારે કસ્ટમ પ્રકાર અહીં દેખાશે',
                 },
                 custom_type: {
-                    kind: 'Kind',
-                    enum_values: 'Enum Values',
-                    composite_fields: 'Fields',
-                    no_fields: 'No fields defined',
-                    field_name_placeholder: 'Field name',
-                    field_type_placeholder: 'Select type',
-                    add_field: 'Add Field',
+                    kind: 'પ્રકાર',
+                    enum_values: 'Enum મૂલ્યો',
+                    composite_fields: 'ફીલ્ડ્સ',
+                    no_fields: 'કોઈ ફીલ્ડ વ્યાખ્યાયિત નથી',
+                    no_values: 'કોઈ enum મૂલ્યો વ્યાખ્યાયિત નથી',
+                    field_name_placeholder: 'ફીલ્ડનું નામ',
+                    field_type_placeholder: 'પ્રકાર પસંદ કરો',
+                    add_field: 'ફીલ્ડ ઉમેરો',
+                    no_fields_tooltip:
+                        'આ કસ્ટમ પ્રકાર માટે કોઈ ફીલ્ડ વ્યાખ્યાયિત નથી',
                     custom_type_actions: {
-                        title: 'Actions',
-                        delete_custom_type: 'Delete',
+                        title: 'ક્રિયાઓ',
+                        highlight_fields: 'ફીલ્ડ્સ હાઇલાઇટ કરો',
+                        delete_custom_type: 'કાઢી નાખો',
+                        clear_field_highlight: 'હાઇલાઇટ કાઢો',
                     },
-                    delete_custom_type: 'Delete Type',
+                    delete_custom_type: 'પ્રકાર કાઢી નાખો',
                 },
             },
         },
@@ -268,8 +312,13 @@ export const gu: LanguageTranslation = {
             show_all: 'બધું બતાવો',
             undo: 'અનડુ',
             redo: 'રીડુ',
-            reorder_diagram: 'ડાયાગ્રામ ફરીથી વ્યવસ્થિત કરો',
+            reorder_diagram: 'ડાયાગ્રામ ઑટોમેટિક ગોઠવો',
+            // TODO: Translate
+            clear_custom_type_highlight: 'Clear highlight for "{{typeName}}"',
+            custom_type_highlight_tooltip:
+                'Highlighting "{{typeName}}" - Click to clear',
             highlight_overlapping_tables: 'ઓવરલેપ કરતો ટેબલ હાઇલાઇટ કરો',
+            filter: 'ટેબલ ફિલ્ટર કરો',
         },
 
         new_diagram_dialog: {
@@ -299,13 +348,13 @@ export const gu: LanguageTranslation = {
             cancel: 'રદ કરો',
             back: 'પાછા',
             import_from_file: 'ફાઇલમાંથી આયાત કરો',
-            empty_diagram: 'ખાલી ડાયાગ્રામ',
+            empty_diagram: 'ખાલી ડેટાબેસ',
             continue: 'ચાલુ રાખો',
             import: 'આયાત કરો',
         },
 
         open_diagram_dialog: {
-            title: 'ડાયાગ્રામ ખોલો',
+            title: 'ડેટાબેસ ખોલો',
             description: 'નીચેની યાદીમાંથી એક ડાયાગ્રામ પસંદ કરો.',
             table_columns: {
                 name: 'નામ',
@@ -315,6 +364,13 @@ export const gu: LanguageTranslation = {
             },
             cancel: 'રદ કરો',
             open: 'ખોલો',
+            new_database: 'નવું ડેટાબેસ',
+
+            diagram_actions: {
+                open: 'ખોલો',
+                duplicate: 'ડુપ્લિકેટ',
+                delete: 'કાઢી નાખો',
+            },
         },
 
         export_sql_dialog: {
@@ -372,10 +428,9 @@ export const gu: LanguageTranslation = {
         export_image_dialog: {
             title: 'છબી નિકાસ કરો',
             description: 'નિકાસ માટે સ્કેલ ફેક્ટર પસંદ કરો:',
-            scale_1x: '1x સામાન્ય',
-            scale_2x: '2x (ભલામણ કરેલું)',
-            scale_3x: '3x',
-            scale_4x: '4x',
+            scale_1x: '1x (નીચી ગુણવત્તા)',
+            scale_2x: '2x (સામાન્ય ગુણવત્તા)',
+            scale_4x: '4x (શ્રેષ્ઠ ગુણવત્તા)',
             cancel: 'રદ કરો',
             export: 'નિકાસ કરો',
             // TODO: Translate
@@ -399,6 +454,14 @@ export const gu: LanguageTranslation = {
             description: 'ટેબલ "{{tableName}}" માટે સ્કીમા અપડેટ કરો',
             cancel: 'રદ કરો',
             confirm: 'બદલો',
+        },
+
+        create_table_schema_dialog: {
+            title: 'નવું સ્કીમા બનાવો',
+            description:
+                'હજી સુધી કોઈ સ્કીમા અસ્તિત્વમાં નથી. તમારા ટેબલ્સ ને વ્યવસ્થિત કરવા માટે તમારું પહેલું સ્કીમા બનાવો.',
+            create: 'બનાવો',
+            cancel: 'રદ કરો',
         },
 
         star_us_dialog: {
@@ -456,9 +519,11 @@ export const gu: LanguageTranslation = {
 
         canvas_context_menu: {
             new_table: 'નવું ટેબલ',
+            new_view: 'નવું વ્યૂ',
             new_relationship: 'નવો સંબંધ',
             // TODO: Translate
-            new_area: 'New Area',
+            new_area: 'નવો વિસ્તાર',
+            new_note: 'નવી નોંધ',
         },
 
         table_node_context_menu: {
@@ -466,6 +531,25 @@ export const gu: LanguageTranslation = {
             duplicate_table: 'ટેબલ નકલ કરો',
             delete_table: 'ટેબલ કાઢી નાખો',
             add_relationship: 'Add Relationship', // TODO: Translate
+            move_to_area: 'વિસ્તારમાં ખસેડો',
+            no_area: 'કોઈ વિસ્તાર નહીં',
+        },
+
+        canvas: {
+            all_tables_hidden: 'બધી ટેબલ્સ છુપાયેલી છે',
+            show_all_tables: 'બધું બતાવો',
+        },
+
+        canvas_filter: {
+            title: 'ટેબલ્સ ફિલ્ટર કરો',
+            search_placeholder: 'ટેબલ્સ શોધો...',
+            group_by_schema: 'સ્કીમા પ્રમાણે ગ્રુપ કરો',
+            group_by_area: 'વિસ્તાર પ્રમાણે ગ્રુપ કરો',
+            no_tables_found: 'કોઈ ટેબલ મળી નથી',
+            empty_diagram_description: 'શરૂ કરવા માટે ટેબલ બનાવો',
+            no_tables_description:
+                'તમારી શોધ અથવા ફિલ્ટર સમાયોજિત કરવાનો પ્રયાસ કરો',
+            clear_filter: 'ફિલ્ટર સાફ કરો',
         },
 
         snap_to_grid_tooltip: 'ગ્રિડ પર સ્નેપ કરો (જમાવટ {{key}})',
@@ -477,6 +561,9 @@ export const gu: LanguageTranslation = {
         language_select: {
             change_language: 'ભાષા બદલો',
         },
+
+        on: 'ચાલુ',
+        off: 'બંધ',
     },
 };
 

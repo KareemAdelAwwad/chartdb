@@ -2,17 +2,25 @@ import type { LanguageMetadata, LanguageTranslation } from '../types';
 
 export const ru: LanguageTranslation = {
     translation: {
+        editor_sidebar: {
+            new_diagram: 'Новая',
+            browse: 'Открыть',
+            tables: 'Таблицы',
+            refs: 'Ссылки',
+            dependencies: 'Зависимости',
+            custom_types: 'Пользовательские типы',
+            visuals: 'Визуальные элементы',
+        },
         menu: {
-            file: {
-                file: 'Файл',
-                new: 'Создать',
-                open: 'Открыть',
+            actions: {
+                actions: 'Действия',
+                new: 'Новая...',
+                browse: 'Все базы данных...',
                 save: 'Сохранить',
                 import: 'Импортировать базу данных',
                 export_sql: 'Экспорт SQL',
                 export_as: 'Экспортировать как',
-                delete_diagram: 'Удалить диаграмму',
-                exit: 'Выход',
+                delete_diagram: 'Удалить',
             },
             edit: {
                 edit: 'Изменение',
@@ -26,7 +34,10 @@ export const ru: LanguageTranslation = {
                 hide_sidebar: 'Скрыть боковую панель',
                 hide_cardinality: 'Скрыть виды связи',
                 show_cardinality: 'Показать виды связи',
+                show_field_attributes: 'Показать атрибуты поля',
+                hide_field_attributes: 'Скрыть атрибуты поля',
                 zoom_on_scroll: 'Увеличение при прокрутке',
+                show_views: 'Представления базы данных',
                 theme: 'Тема',
                 show_dependencies: 'Показать зависимости',
                 hide_dependencies: 'Скрыть зависимости',
@@ -62,20 +73,11 @@ export const ru: LanguageTranslation = {
         },
 
         reorder_diagram_alert: {
-            title: 'Переупорядочить диаграмму',
+            title: 'Автоматическая расстановка диаграммы',
             description:
                 'Это действие переставит все таблицы на диаграмме. Хотите продолжить?',
-            reorder: 'Изменить порядок',
+            reorder: 'Автоматическая расстановка',
             cancel: 'Отменить',
-        },
-
-        multiple_schemas_alert: {
-            title: 'Множественные схемы',
-            description:
-                '{{schemasCount}} схем в этой диаграмме. В данный момент отображается: {{formattedSchemas}}.',
-            dont_show_again: 'Больше не показывать',
-            change_schema: 'Изменить',
-            none: 'никто',
         },
 
         copy_to_clipboard_toast: {
@@ -111,14 +113,11 @@ export const ru: LanguageTranslation = {
         show_less: 'Показать меньше',
 
         side_panel: {
-            schema: 'Схема:',
-            filter_by_schema: 'Фильтр по схеме',
-            search_schema: 'Схема поиска...',
-            no_schemas_found: 'Схемы не найдены.',
             view_all_options: 'Просмотреть все варианты...',
             tables_section: {
                 tables: 'Таблицы',
                 add_table: 'Добавить таблицу',
+                add_view: 'Добавить представление',
                 filter: 'Фильтр',
                 collapse: 'Свернуть все',
                 clear: 'Очистить фильтр',
@@ -127,16 +126,20 @@ export const ru: LanguageTranslation = {
                     'Таблицы не найдены, соответствующие вашему фильтру.',
                 show_list: 'Переключиться на список таблиц',
                 show_dbml: 'Переключиться на редактор DBML',
+                all_hidden: 'Все таблицы скрыты',
+                show_all: 'Показать все',
 
                 table: {
                     fields: 'Поля',
                     nullable: 'Может быть NULL?',
                     primary_key: 'Первичный ключ',
                     indexes: 'Индексы',
+                    check_constraints: 'Проверочные ограничения',
                     comments: 'Комментарии',
                     no_comments: 'Нет комментария',
                     add_field: 'Добавить поле',
                     add_index: 'Добавить индекс',
+                    add_check: 'Добавить проверку',
                     index_select_fields: 'Выберите поля',
                     no_types_found: 'Типы не найдены',
                     field_name: 'Имя',
@@ -144,16 +147,28 @@ export const ru: LanguageTranslation = {
                     field_actions: {
                         title: 'Атрибуты поля',
                         unique: 'Уникальный',
+                        auto_increment: 'Автоинкремент',
                         comments: 'Комментарии',
                         no_comments: 'Нет комментария',
                         delete_field: 'Удалить поле',
+                        // TODO: Translate
+                        default_value: 'Default Value',
+                        no_default: 'No default',
                         character_length: 'Макс. длина',
+                        precision: 'Точность',
+                        scale: 'Масштаб',
                     },
                     index_actions: {
                         title: 'Атрибуты индекса',
                         name: 'Имя',
                         unique: 'Уникальный',
+                        index_type: 'Тип индекса',
                         delete_index: 'Удалить индекс',
+                    },
+                    check_constraint_actions: {
+                        title: 'Проверочное ограничение',
+                        expression: 'Выражение',
+                        delete: 'Удалить ограничение',
                     },
                     table_actions: {
                         title: 'Действия',
@@ -169,33 +184,29 @@ export const ru: LanguageTranslation = {
                     description: 'Создайте таблицу, чтобы начать',
                 },
             },
-            relationships_section: {
-                relationships: 'Отношения',
+            refs_section: {
+                refs: 'Ссылки',
                 filter: 'Фильтр',
-                add_relationship: 'Добавить отношение',
                 collapse: 'Свернуть все',
+                add_relationship: 'Добавить отношение',
+                relationships: 'Отношения',
+                dependencies: 'Зависимости',
                 relationship: {
+                    relationship: 'Отношение',
                     primary: 'Основная таблица',
-                    foreign: 'Справочная таблица',
+                    foreign: 'Связанная таблица',
                     cardinality: 'Тип множественной связи',
                     delete_relationship: 'Удалить',
+                    switch_tables: 'Поменять таблицы',
                     relationship_actions: {
                         title: 'Действия',
                         delete_relationship: 'Удалить',
                     },
                 },
-                empty_state: {
-                    title: 'Нет отношений',
-                    description: 'Создайте связь для соединения таблиц',
-                },
-            },
-            dependencies_section: {
-                dependencies: 'Зависимости',
-                filter: 'Фильтр',
-                collapse: 'Свернуть все',
                 dependency: {
-                    table: 'Стол',
-                    dependent_table: 'Зависимый вид',
+                    dependency: 'Зависимость',
+                    table: 'Таблица',
+                    dependent_table: 'Зависимое представление',
                     delete_dependency: 'Удалить',
                     dependency_actions: {
                         title: 'Действия',
@@ -203,8 +214,8 @@ export const ru: LanguageTranslation = {
                     },
                 },
                 empty_state: {
-                    title: 'Нет зависимостей',
-                    description: 'Создайте представление, чтобы начать',
+                    title: 'Нет отношений',
+                    description: 'Создайте отношение, чтобы начать',
                 },
             },
 
@@ -229,30 +240,65 @@ export const ru: LanguageTranslation = {
                     description: 'Создайте область, чтобы начать',
                 },
             },
-            // TODO: Translate
-            custom_types_section: {
-                custom_types: 'Custom Types',
-                filter: 'Filter',
-                clear: 'Clear Filter',
-                no_results: 'No custom types found matching your filter.',
+
+            visuals_section: {
+                visuals: 'Визуальные элементы',
+                tabs: {
+                    areas: 'Области',
+                    notes: 'Заметки',
+                },
+            },
+
+            notes_section: {
+                filter: 'Фильтр',
+                add_note: 'Добавить Заметку',
+                no_results: 'Заметки не найдены',
+                clear: 'Очистить Фильтр',
                 empty_state: {
-                    title: 'No custom types',
+                    title: 'Нет Заметок',
                     description:
-                        'Custom types will appear here when they are available in your database',
+                        'Создайте заметку, чтобы добавить текстовые аннотации на холсте',
+                },
+                note: {
+                    empty_note: 'Пустая заметка',
+                    note_actions: {
+                        title: 'Действия с Заметкой',
+                        edit_content: 'Редактировать Содержимое',
+                        delete_note: 'Удалить Заметку',
+                    },
+                },
+            },
+
+            custom_types_section: {
+                custom_types: 'Пользовательские типы',
+                filter: 'Фильтр',
+                clear: 'Очистить фильтр',
+                no_results:
+                    'Не найдено пользовательских типов, соответствующих фильтру.',
+                new_type: 'Новый тип',
+                empty_state: {
+                    title: 'Нет пользовательских типов',
+                    description:
+                        'Пользовательские типы появятся здесь, когда будут доступны в вашей базе данных',
                 },
                 custom_type: {
-                    kind: 'Kind',
-                    enum_values: 'Enum Values',
-                    composite_fields: 'Fields',
-                    no_fields: 'No fields defined',
-                    field_name_placeholder: 'Field name',
-                    field_type_placeholder: 'Select type',
-                    add_field: 'Add Field',
+                    kind: 'Вид',
+                    enum_values: 'Значения перечисления',
+                    composite_fields: 'Поля',
+                    no_fields: 'Поля не определены',
+                    no_values: 'Значения перечисления не определены',
+                    field_name_placeholder: 'Имя поля',
+                    field_type_placeholder: 'Выберите тип',
+                    add_field: 'Добавить поле',
+                    no_fields_tooltip:
+                        'Для этого пользовательского типа поля не определены',
                     custom_type_actions: {
-                        title: 'Actions',
-                        delete_custom_type: 'Delete',
+                        title: 'Действия',
+                        highlight_fields: 'Выделить поля',
+                        delete_custom_type: 'Удалить',
+                        clear_field_highlight: 'Снять выделение',
                     },
-                    delete_custom_type: 'Delete Type',
+                    delete_custom_type: 'Удалить тип',
                 },
             },
         },
@@ -264,8 +310,13 @@ export const ru: LanguageTranslation = {
             show_all: 'Показать все',
             undo: 'Отменить',
             redo: 'Вернуть',
-            reorder_diagram: 'Переупорядочить диаграмму',
+            reorder_diagram: 'Автоматическая расстановка диаграммы',
+            // TODO: Translate
+            clear_custom_type_highlight: 'Clear highlight for "{{typeName}}"',
+            custom_type_highlight_tooltip:
+                'Highlighting "{{typeName}}" - Click to clear',
             highlight_overlapping_tables: 'Выделение перекрывающихся таблиц',
+            filter: 'Фильтровать таблицы',
         },
 
         new_diagram_dialog: {
@@ -296,13 +347,13 @@ export const ru: LanguageTranslation = {
             cancel: 'Отменить',
             back: 'Назад',
             import_from_file: 'Импортировать из файла',
-            empty_diagram: 'Пустая диаграмма',
+            empty_diagram: 'Пустая база данных',
             continue: 'Продолжить',
             import: 'Импорт',
         },
 
         open_diagram_dialog: {
-            title: 'Открыть диаграмму',
+            title: 'Открыть базу данных',
             description:
                 'Выберите диаграмму, которую нужно открыть, из списка ниже.',
             table_columns: {
@@ -313,6 +364,13 @@ export const ru: LanguageTranslation = {
             },
             cancel: 'Отмена',
             open: 'Открыть',
+            new_database: 'Новая база данных',
+
+            diagram_actions: {
+                open: 'Открыть',
+                duplicate: 'Дублировать',
+                delete: 'Удалить',
+            },
         },
 
         export_sql_dialog: {
@@ -370,10 +428,9 @@ export const ru: LanguageTranslation = {
         export_image_dialog: {
             title: 'Экспортировать изображение',
             description: 'Выберите детализацию изображения при экспорте:',
-            scale_1x: '1x Обычный',
-            scale_2x: '2x (Рекомендовано)',
-            scale_3x: '3x',
-            scale_4x: '4x',
+            scale_1x: '1x (Низкое качество)',
+            scale_2x: '2x (Обычное качество)',
+            scale_4x: '4x (Лучшее качество)',
             cancel: 'Отменить',
             export: 'Экспортировать',
             // TODO: Translate
@@ -397,6 +454,14 @@ export const ru: LanguageTranslation = {
             description: 'Обновить таблицу "{{tableName}}" схема',
             cancel: 'Отменить',
             confirm: 'Изменить',
+        },
+
+        create_table_schema_dialog: {
+            title: 'Создать новую схему',
+            description:
+                'Схемы еще не существуют. Создайте вашу первую схему, чтобы организовать таблицы.',
+            create: 'Создать',
+            cancel: 'Отменить',
         },
 
         star_us_dialog: {
@@ -453,8 +518,10 @@ export const ru: LanguageTranslation = {
 
         canvas_context_menu: {
             new_table: 'Создать таблицу',
+            new_view: 'Новое представление',
             new_relationship: 'Создать отношение',
             new_area: 'Новая область',
+            new_note: 'Новая Заметка',
         },
 
         table_node_context_menu: {
@@ -462,6 +529,24 @@ export const ru: LanguageTranslation = {
             duplicate_table: 'Создать копию',
             delete_table: 'Удалить таблицу',
             add_relationship: 'Добавить связь',
+            move_to_area: 'Переместить в область',
+            no_area: 'Без области',
+        },
+
+        canvas: {
+            all_tables_hidden: 'Все таблицы скрыты',
+            show_all_tables: 'Показать все',
+        },
+
+        canvas_filter: {
+            title: 'Фильтр таблиц',
+            search_placeholder: 'Поиск таблиц...',
+            group_by_schema: 'Группировать по схеме',
+            group_by_area: 'Группировать по области',
+            no_tables_found: 'Таблицы не найдены',
+            empty_diagram_description: 'Создайте таблицу, чтобы начать',
+            no_tables_description: 'Попробуйте изменить поиск или фильтр',
+            clear_filter: 'Очистить фильтр',
         },
 
         copy_to_clipboard: 'Скопировать в буфер обмена',
@@ -474,6 +559,9 @@ export const ru: LanguageTranslation = {
         language_select: {
             change_language: 'Сменить язык',
         },
+
+        on: 'Вкл',
+        off: 'Выкл',
     },
 };
 

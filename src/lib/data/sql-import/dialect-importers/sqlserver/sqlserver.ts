@@ -6,112 +6,267 @@ import type {
     SQLIndex,
     SQLForeignKey,
     SQLASTNode,
+    SQLCheckConstraint,
 } from '../../common';
-import { buildSQLFromAST } from '../../common';
-import { DatabaseType } from '@/lib/domain/database-type';
 import type {
     TableReference,
     ColumnReference,
-    ColumnDefinition,
     ConstraintDefinition,
-    CreateTableStatement,
     CreateIndexStatement,
     AlterTableStatement,
 } from './sqlserver-common';
 import {
     parserOpts,
     extractColumnName,
-    getTypeArgs,
     findTableWithSchemaSupport,
 } from './sqlserver-common';
 
 /**
- * Helper function to safely build SQL from AST nodes, handling null/undefined/invalid cases
+ * Extract columns from a CREATE VIEW statement
+ * Views can have explicit column names or derive them from the SELECT
  */
-function safelyBuildSQLFromAST(ast: unknown): string | undefined {
-    if (!ast) return undefined;
+function extractColumnsFromView(sql: string): SQLColumn[] {
+    const columns: SQLColumn[] = [];
 
-    // Make sure it's a valid AST node with a 'type' property
-    if (typeof ast === 'object' && ast !== null && 'type' in ast) {
-        return buildSQLFromAST(ast as SQLASTNode, DatabaseType.SQL_SERVER);
+    // First, try to extract explicit column list from CREATE VIEW viewname (col1, col2, ...) AS
+    const explicitColumnsMatch = sql.match(
+        /CREATE\s+(?:OR\s+ALTER\s+)?VIEW\s+(?:\[?[^\]]+\]?\.)?(?:\[?[^\]]+\]?)\s*\(([^)]+)\)\s*(?:WITH\s+[^)]+\s*)?AS/i
+    );
+
+    if (explicitColumnsMatch) {
+        // Parse explicit column list
+        const columnList = explicitColumnsMatch[1];
+        const columnNames = columnList
+            .split(',')
+            .map((col) => col.trim().replace(/^\[|\]$/g, ''));
+
+        for (const colName of columnNames) {
+            if (colName) {
+                columns.push({
+                    name: colName,
+                    type: 'nvarchar', // Default type for views
+                    nullable: true,
+                    primaryKey: false,
+                    unique: false,
+                });
+            }
+        }
+
+        return columns;
     }
 
-    // Return string representation for non-AST objects
-    if (ast !== null && (typeof ast === 'string' || typeof ast === 'number')) {
-        return String(ast);
+    // If no explicit columns, try to extract from SELECT clause
+    const selectMatch = sql.match(/\bAS\s+SELECT\s+([\s\S]+?)\s+FROM\s+/i);
+
+    if (selectMatch) {
+        const selectClause = selectMatch[1];
+
+        // Handle SELECT * - we can't determine columns
+        if (selectClause.trim() === '*') {
+            return columns;
+        }
+
+        // Split by comma, but be careful of nested functions/expressions
+        let depth = 0;
+        let currentCol = '';
+        const selectParts: string[] = [];
+
+        for (const char of selectClause) {
+            if (char === '(' || char === '[') depth++;
+            else if (char === ')' || char === ']') depth--;
+            else if (char === ',' && depth === 0) {
+                selectParts.push(currentCol.trim());
+                currentCol = '';
+                continue;
+            }
+            currentCol += char;
+        }
+        if (currentCol.trim()) {
+            selectParts.push(currentCol.trim());
+        }
+
+        for (const part of selectParts) {
+            let columnName = '';
+
+            // Check for alias: ... AS [name] or ... AS name
+            const aliasMatch = part.match(/\s+AS\s+\[?(\w+)\]?\s*$/i);
+            if (aliasMatch) {
+                columnName = aliasMatch[1];
+            } else {
+                // Try to extract the column reference
+                const colRefMatch = part.match(
+                    /(?:[\w[\]]+\.)?\[?(\w+)\]?\s*$/
+                );
+                if (colRefMatch) {
+                    columnName = colRefMatch[1];
+                }
+            }
+
+            if (columnName && columnName !== '*') {
+                columns.push({
+                    name: columnName,
+                    type: 'nvarchar',
+                    nullable: true,
+                    primaryKey: false,
+                    unique: false,
+                });
+            }
+        }
     }
 
-    return undefined;
+    return columns;
+}
+
+/**
+ * Extract CHECK constraints from CREATE TABLE statements
+ */
+function extractCheckConstraintsFromCreateTable(
+    sql: string
+): SQLCheckConstraint[] {
+    const constraints: SQLCheckConstraint[] = [];
+
+    // Extract the table body
+    const tableBodyMatch = sql.match(/\(([\s\S]+)\)/);
+    if (!tableBodyMatch) return constraints;
+
+    const tableBody = tableBodyMatch[1];
+
+    // Pattern for CHECK constraints:
+    // CHECK (expression) or CONSTRAINT [name] CHECK (expression)
+    const checkPattern =
+        /(?:CONSTRAINT\s+(?:\[[^\]]+\]|[^\s]+)\s+)?CHECK\s*\(/gi;
+    let match;
+
+    while ((match = checkPattern.exec(tableBody)) !== null) {
+        const startIdx = match.index + match[0].length;
+        let depth = 1;
+        let endIdx = startIdx;
+
+        // Find the matching closing parenthesis
+        for (let i = startIdx; i < tableBody.length && depth > 0; i++) {
+            if (tableBody[i] === '(') depth++;
+            else if (tableBody[i] === ')') depth--;
+            endIdx = i;
+        }
+
+        if (depth === 0) {
+            const expression = tableBody.substring(startIdx, endIdx).trim();
+            if (expression) {
+                constraints.push({ expression });
+            }
+        }
+    }
+
+    return constraints;
 }
 
 /**
  * Preprocess SQL Server script to remove or modify parts that the parser can't handle
  */
 function preprocessSQLServerScript(sqlContent: string): string {
-    // 1. Remove IF NOT EXISTS ... BEGIN ... END blocks (typically used for schema creation)
+    // 1. Remove USE statements
+    sqlContent = sqlContent.replace(/USE\s+\[[^\]]+\]\s*;?/gi, '');
+
+    // 2. Remove SET statements
+    sqlContent = sqlContent.replace(/SET\s+\w+\s+\w+\s*;?/gi, '');
+
+    // 3. Remove GO statements (batch separators)
+    sqlContent = sqlContent.replace(/\bGO\b/gi, ';');
+
+    // 4. Remove CREATE SCHEMA statements
+    sqlContent = sqlContent.replace(/CREATE\s+SCHEMA\s+\[[^\]]+\]\s*;?/gi, '');
+
+    // 5. Remove IF NOT EXISTS ... BEGIN ... END blocks
     sqlContent = sqlContent.replace(
         /IF\s+NOT\s+EXISTS\s*\([^)]+\)\s*BEGIN\s+[^;]+;\s*END;?/gi,
         ''
     );
 
-    // 2. Remove any GO statements (batch separators)
-    sqlContent = sqlContent.replace(/\bGO\b/gi, ';');
-
-    // 3. Remove any EXEC statements
+    // 6. Remove any EXEC statements
     sqlContent = sqlContent.replace(/EXEC\s*\([^)]+\)\s*;?/gi, '');
     sqlContent = sqlContent.replace(/EXEC\s+[^;]+;/gi, '');
 
-    // 4. Replace any remaining procedural code blocks that might cause issues
+    // 7. Replace any remaining procedural code blocks
     sqlContent = sqlContent.replace(
         /BEGIN\s+TRANSACTION|COMMIT\s+TRANSACTION|ROLLBACK\s+TRANSACTION/gi,
         '-- $&'
     );
 
-    // 5. Special handling for CREATE TABLE with reserved keywords as column names
-    // Find CREATE TABLE statements
-    const createTablePattern =
-        /CREATE\s+TABLE\s+\[?([^\]]*)\]?\.?\[?([^\]]*)\]?\s*\(([^;]*)\)/gi;
+    // 8. Remove square brackets (SQL Server specific)
+    sqlContent = sqlContent.replace(/\[/g, '');
+    sqlContent = sqlContent.replace(/\]/g, '');
 
+    // 9. Remove ON PRIMARY and TEXTIMAGE_ON PRIMARY clauses
     sqlContent = sqlContent.replace(
-        createTablePattern,
-        (_, schema, tableName, columnDefs) => {
-            // Process column definitions to rename problematic columns
-            let processedColumnDefs = columnDefs;
-
-            // Replace any column named "column" with "column_name"
-            processedColumnDefs = processedColumnDefs.replace(
-                /\[column\]/gi,
-                '[column_name]'
-            );
-
-            // Replace any column named "int" with "int_col"
-            processedColumnDefs = processedColumnDefs.replace(
-                /\[int\]/gi,
-                '[int_col]'
-            );
-
-            // Replace any column named "time" with "time_col"
-            processedColumnDefs = processedColumnDefs.replace(
-                /\[time\]/gi,
-                '[time_col]'
-            );
-
-            // Replace any column named "order" with "order_column"
-            processedColumnDefs = processedColumnDefs.replace(
-                /\[order\]/gi,
-                '[order_column]'
-            );
-
-            // Rebuild the CREATE TABLE statement
-            return `CREATE TABLE [${schema || 'dbo'}].[${tableName}] (${processedColumnDefs})`;
-        }
+        /ON\s+PRIMARY(\s+TEXTIMAGE_ON\s+PRIMARY)?/gi,
+        ''
     );
 
-    // 6. Handle default value expressions with functions - replace with simpler defaults
-    sqlContent = sqlContent.replace(/DEFAULT\s+'\([^)]+\)'/gi, "DEFAULT '0'");
-    sqlContent = sqlContent.replace(/DEFAULT\s+\([^)]+\)/gi, 'DEFAULT 0');
+    // 10. Remove WITH options from constraints
+    sqlContent = sqlContent.replace(/WITH\s*\([^)]+\)/gi, '');
 
-    // 7. Split into individual statements to handle them separately
+    // 11. Handle default value expressions with functions
+    sqlContent = sqlContent.replace(/DEFAULT\s+NEWID\(\)/gi, "DEFAULT 'newid'");
+    sqlContent = sqlContent.replace(
+        /DEFAULT\s+NEWSEQUENTIALID\(\)/gi,
+        "DEFAULT 'newsequentialid'"
+    );
+    sqlContent = sqlContent.replace(
+        /DEFAULT\s+GETDATE\(\)/gi,
+        "DEFAULT 'getdate'"
+    );
+    sqlContent = sqlContent.replace(
+        /DEFAULT\s+SYSDATETIME\(\)/gi,
+        "DEFAULT 'sysdatetime'"
+    );
+    // Don't replace numeric defaults or simple values
+    sqlContent = sqlContent.replace(/DEFAULT\s+'\([^)]+\)'/gi, "DEFAULT '0'");
+    // Only replace function calls in DEFAULT, not numeric literals
+    sqlContent = sqlContent.replace(
+        /DEFAULT\s+(\w+)\s*\([^)]*\)/gi,
+        "DEFAULT '0'"
+    );
+
+    // 12. Replace SQL Server specific data types with standard types
+    // Note: We preserve varchar(max) and nvarchar(max) for accurate export
+    sqlContent = sqlContent.replace(/\buniqueid\b/gi, 'uniqueidentifier'); // Fix common typo
+    sqlContent = sqlContent.replace(
+        /\bdatetime2\s*\(\s*\d+\s*\)/gi,
+        'datetime2'
+    );
+    sqlContent = sqlContent.replace(/\btime\s*\(\s*\d+\s*\)/gi, 'time');
+    sqlContent = sqlContent.replace(
+        /\bdatetimeoffset\s*\(\s*\d+\s*\)/gi,
+        'datetimeoffset'
+    );
+
+    // 13. Handle IDENTITY columns - convert to a simpler format
+    sqlContent = sqlContent.replace(
+        /IDENTITY\s*\(\s*\d+\s*,\s*\d+\s*\)/gi,
+        'AUTO_INCREMENT'
+    );
+    sqlContent = sqlContent.replace(/IDENTITY/gi, 'AUTO_INCREMENT');
+
+    // 14. Replace CHECK constraints with comments (parser doesn't handle well)
+    sqlContent = sqlContent.replace(
+        /CHECK\s*\([^)]+\)/gi,
+        '/* CHECK CONSTRAINT */'
+    );
+
+    // 15. Handle FOREIGN KEY constraints within CREATE TABLE
+    // Convert inline foreign key syntax to be more parser-friendly
+    sqlContent = sqlContent.replace(
+        /(\w+)\s+(\w+(?:\s*\(\s*\d+(?:\s*,\s*\d+)?\s*\))?)\s+(?:NOT\s+NULL\s+)?FOREIGN\s+KEY\s+REFERENCES\s+(\w+)\.?(\w+)\s*\((\w+)\)/gi,
+        '$1 $2 /* FK TO $3.$4($5) */'
+    );
+
+    // Handle standalone FOREIGN KEY constraints
+    sqlContent = sqlContent.replace(
+        /CONSTRAINT\s+(\w+)\s+FOREIGN\s+KEY\s*\((\w+)\)\s+REFERENCES\s+(\w+)\.?(\w+)?\s*\((\w+)\)(?:\s+ON\s+DELETE\s+(\w+))?(?:\s+ON\s+UPDATE\s+(\w+))?/gi,
+        '/* CONSTRAINT $1 FK($2) REF $3.$4($5) */'
+    );
+
+    // 16. Split into individual statements to handle them separately
     const statements = sqlContent
         .split(';')
         .filter((stmt) => stmt.trim().length > 0);
@@ -120,55 +275,61 @@ function preprocessSQLServerScript(sqlContent: string): string {
     const filteredStatements = statements.filter((stmt) => {
         const trimmedStmt = stmt.trim().toUpperCase();
         return (
-            trimmedStmt.startsWith('CREATE TABLE') ||
-            trimmedStmt.startsWith('CREATE UNIQUE INDEX') ||
-            trimmedStmt.startsWith('CREATE INDEX') ||
-            trimmedStmt.startsWith('ALTER TABLE')
+            trimmedStmt.includes('CREATE TABLE') ||
+            trimmedStmt.includes('CREATE UNIQUE INDEX') ||
+            trimmedStmt.includes('CREATE INDEX') ||
+            trimmedStmt.includes('ALTER TABLE')
         );
     });
 
-    return filteredStatements.join(';') + ';';
+    return filteredStatements.join(';\n') + ';';
 }
 
 /**
  * Manual parsing of ALTER TABLE ADD CONSTRAINT statements
  * This is a fallback for when the node-sql-parser fails to properly parse the constraints
  */
-function parseAlterTableAddConstraint(statements: string[]): {
-    fkData: SQLForeignKey[];
-    tableMap: Record<string, string>;
-} {
+function parseAlterTableAddConstraint(statements: string[]): SQLForeignKey[] {
     const fkData: SQLForeignKey[] = [];
-    const tableMap: Record<string, string> = {};
 
     // Regular expressions to extract information from ALTER TABLE statements
+    // Handle multi-line ALTER TABLE statements
     const alterTableRegex =
-        /ALTER\s+TABLE\s+\[?([^\]]*)\]?\.?\[?([^\]]*)\]?\s+ADD\s+CONSTRAINT\s+\[?([^\]]*)\]?\s+FOREIGN\s+KEY\s*\(\[?([^\]]*)\]?\)\s+REFERENCES\s+\[?([^\]]*)\]?\.?\[?([^\]]*)\]?\s*\(\[?([^\]]*)\]?\)/i;
+        /ALTER\s+TABLE\s+\[?([^\]]*)\]?\.?\[?([^\]]*)\]?\s+(?:WITH\s+CHECK\s+)?ADD\s+CONSTRAINT\s+\[?([^\]]*)\]?\s+FOREIGN\s+KEY\s*\(\[?([^\]]*)\]?\)\s*REFERENCES\s+\[?([^\]]*)\]?\.?\[?([^\]]*)\]?\s*\(\[?([^\]]*)\]?\)/is;
 
     for (const stmt of statements) {
         const match = stmt.match(alterTableRegex);
         if (match) {
             const [
                 ,
-                sourceSchema = 'dbo',
-                sourceTable,
+                sourceSchemaOrTable,
+                sourceTableIfSchema,
                 constraintName,
                 sourceColumn,
-                targetSchema = 'dbo',
-                targetTable,
+                targetSchemaOrTable,
+                targetTableIfSchema,
                 targetColumn,
             ] = match;
 
-            // Generate IDs for tables if they don't already exist
-            const sourceTableKey = `${sourceSchema}.${sourceTable}`;
-            const targetTableKey = `${targetSchema}.${targetTable}`;
+            // Handle both schema.table and just table formats
+            let sourceSchema = 'dbo';
+            let sourceTable = '';
+            let targetSchema = 'dbo';
+            let targetTable = '';
 
-            if (!tableMap[sourceTableKey]) {
-                tableMap[sourceTableKey] = generateId();
+            // If second group is empty, first group is the table name
+            if (!sourceTableIfSchema) {
+                sourceTable = sourceSchemaOrTable;
+            } else {
+                sourceSchema = sourceSchemaOrTable;
+                sourceTable = sourceTableIfSchema;
             }
 
-            if (!tableMap[targetTableKey]) {
-                tableMap[targetTableKey] = generateId();
+            if (!targetTableIfSchema) {
+                targetTable = targetSchemaOrTable;
+            } else {
+                targetSchema = targetSchemaOrTable;
+                targetTable = targetTableIfSchema;
             }
 
             fkData.push({
@@ -179,13 +340,13 @@ function parseAlterTableAddConstraint(statements: string[]): {
                 targetTable: targetTable,
                 targetSchema: targetSchema,
                 targetColumn: targetColumn,
-                sourceTableId: tableMap[sourceTableKey],
-                targetTableId: tableMap[targetTableKey],
+                sourceTableId: '', // Will be filled by linkRelationships
+                targetTableId: '', // Will be filled by linkRelationships
             });
         }
     }
 
-    return { fkData, tableMap };
+    return fkData;
 }
 
 /**
@@ -268,6 +429,345 @@ function normalizeSQLServerDataType(dataType: string): string {
 }
 
 /**
+ * Manual parsing of CREATE TABLE statements when node-sql-parser fails
+ */
+function parseCreateTableManually(
+    statement: string,
+    tables: SQLTable[],
+    tableMap: Record<string, string>,
+    relationships: SQLForeignKey[]
+): void {
+    // Extract table name and schema (handling square brackets)
+    const tableMatch = statement.match(
+        /CREATE\s+TABLE\s+(?:\[?(\w+)\]?\.)??\[?(\w+)\]?\s*\(/i
+    );
+    if (!tableMatch) return;
+
+    const [, schema = 'dbo', tableName] = tableMatch;
+
+    // Generate table ID
+    const tableId = generateId();
+    const tableKey = `${schema}.${tableName}`;
+    tableMap[tableKey] = tableId;
+
+    // Extract column definitions
+    const columns: SQLColumn[] = [];
+    const indexes: SQLIndex[] = [];
+
+    // Find the content between the parentheses
+    const tableContentMatch = statement.match(
+        /CREATE\s+TABLE\s+[^(]+\(([\s\S]*)\)\s*(?:ON\s+|$)/i
+    );
+    if (!tableContentMatch) return;
+
+    const tableContent = tableContentMatch[1];
+
+    // Split table content by commas but not within parentheses
+    const parts = [];
+    let current = '';
+    let parenDepth = 0;
+
+    for (let i = 0; i < tableContent.length; i++) {
+        const char = tableContent[i];
+        if (char === '(') parenDepth++;
+        else if (char === ')') parenDepth--;
+        else if (char === ',' && parenDepth === 0) {
+            parts.push(current.trim());
+            current = '';
+            continue;
+        }
+        current += char;
+    }
+    if (current.trim()) parts.push(current.trim());
+
+    // Process each part (column or constraint)
+    for (const part of parts) {
+        // Handle standalone FOREIGN KEY definitions (without CONSTRAINT keyword)
+        // Format: FOREIGN KEY (column) REFERENCES Table(column)
+        if (part.match(/^\s*FOREIGN\s+KEY/i)) {
+            const fkMatch = part.match(
+                /FOREIGN\s+KEY\s*\(([^)]+)\)\s+REFERENCES\s+(?:\[?(\w+)\]?\.)??\[?(\w+)\]?\s*\(([^)]+)\)/i
+            );
+            if (fkMatch) {
+                const [
+                    ,
+                    sourceCol,
+                    targetSchema = 'dbo',
+                    targetTable,
+                    targetCol,
+                ] = fkMatch;
+                relationships.push({
+                    name: `FK_${tableName}_${sourceCol.trim().replace(/\[|\]/g, '')}`,
+                    sourceTable: tableName,
+                    sourceSchema: schema,
+                    sourceColumn: sourceCol.trim().replace(/\[|\]/g, ''),
+                    targetTable: targetTable || targetSchema,
+                    targetSchema: targetTable ? targetSchema : 'dbo',
+                    targetColumn: targetCol.trim().replace(/\[|\]/g, ''),
+                    sourceTableId: tableId,
+                    targetTableId: '', // Will be filled later
+                });
+            }
+            continue;
+        }
+
+        // Handle standalone PRIMARY KEY definitions (without CONSTRAINT keyword)
+        // Format: PRIMARY KEY (column1, column2, ...)
+        if (part.match(/^\s*PRIMARY\s+KEY/i)) {
+            const pkColumnsMatch = part.match(
+                /PRIMARY\s+KEY(?:\s+CLUSTERED)?\s*\(([\s\S]+?)\)/i
+            );
+            if (pkColumnsMatch) {
+                const pkColumns = pkColumnsMatch[1].split(',').map((c) =>
+                    c
+                        .trim()
+                        .replace(/\[|\]|\s+(ASC|DESC)/gi, '')
+                        .trim()
+                );
+                const isSingleColumnPK = pkColumns.length === 1;
+                pkColumns.forEach((col) => {
+                    const column = columns.find((c) => c.name === col);
+                    if (column) {
+                        column.primaryKey = true;
+                        // Only mark as unique if single-column PK
+                        if (isSingleColumnPK) {
+                            column.unique = true;
+                        }
+                    }
+                });
+            }
+            continue;
+        }
+
+        // Handle constraint definitions
+        if (part.match(/^\s*CONSTRAINT/i)) {
+            // Parse constraints
+            const constraintMatch = part.match(
+                /CONSTRAINT\s+\[?(\w+)\]?\s+(PRIMARY\s+KEY|UNIQUE|FOREIGN\s+KEY)/i
+            );
+            if (constraintMatch) {
+                const [, constraintName, constraintType] = constraintMatch;
+
+                if (constraintType.match(/PRIMARY\s+KEY/i)) {
+                    // Extract columns from PRIMARY KEY constraint - handle multi-line format
+                    const pkColumnsMatch = part.match(
+                        /PRIMARY\s+KEY(?:\s+CLUSTERED)?\s*\(([\s\S]+?)\)/i
+                    );
+                    if (pkColumnsMatch) {
+                        const pkColumns = pkColumnsMatch[1]
+                            .split(',')
+                            .map((c) =>
+                                c
+                                    .trim()
+                                    .replace(/\[|\]|\s+(ASC|DESC)/gi, '')
+                                    .trim()
+                            );
+                        const isSingleColumnPK = pkColumns.length === 1;
+                        pkColumns.forEach((col) => {
+                            const column = columns.find((c) => c.name === col);
+                            if (column) {
+                                column.primaryKey = true;
+                                // Only mark as unique if single-column PK
+                                if (isSingleColumnPK) {
+                                    column.unique = true;
+                                }
+                            }
+                        });
+                    }
+                } else if (constraintType === 'UNIQUE') {
+                    // Extract columns from UNIQUE constraint
+                    const uniqueColumnsMatch = part.match(
+                        /UNIQUE(?:\s+NONCLUSTERED)?\s*\(([\s\S]+?)\)/i
+                    );
+                    if (uniqueColumnsMatch) {
+                        const uniqueColumns = uniqueColumnsMatch[1]
+                            .split(',')
+                            .map((c) =>
+                                c
+                                    .trim()
+                                    .replace(/\[|\]|\s+(ASC|DESC)/gi, '')
+                                    .trim()
+                            );
+                        indexes.push({
+                            name: constraintName,
+                            columns: uniqueColumns,
+                            unique: true,
+                        });
+                    }
+                } else if (constraintType.match(/FOREIGN\s+KEY/i)) {
+                    // Parse foreign key constraint
+                    const fkMatch = part.match(
+                        /FOREIGN\s+KEY\s*\(([^)]+)\)\s+REFERENCES\s+(?:\[?(\w+)\]?\.)??\[?(\w+)\]?\s*\(([^)]+)\)/i
+                    );
+                    if (fkMatch) {
+                        const [
+                            ,
+                            sourceCol,
+                            targetSchema = 'dbo',
+                            targetTable,
+                            targetCol,
+                        ] = fkMatch;
+                        relationships.push({
+                            name: constraintName,
+                            sourceTable: tableName,
+                            sourceSchema: schema,
+                            sourceColumn: sourceCol
+                                .trim()
+                                .replace(/\[|\]/g, ''),
+                            targetTable: targetTable,
+                            targetSchema: targetSchema,
+                            targetColumn: targetCol
+                                .trim()
+                                .replace(/\[|\]/g, ''),
+                            sourceTableId: tableId,
+                            targetTableId: '', // Will be filled later
+                        });
+                    }
+                }
+            }
+            continue;
+        }
+
+        // Parse column definition - handle both numeric args and 'max'
+        // Handle brackets around column names and types
+        let columnMatch = part.match(
+            /^\s*\[?(\w+)\]?\s+\[?(\w+)\]?(?:\s*\(\s*([\d,\s]+|max)\s*\))?(.*)$/i
+        );
+
+        // If no match, try pattern for preprocessed types without parentheses
+        if (!columnMatch) {
+            columnMatch = part.match(/^\s*(\w+)\s+(\w+)\s+([\d,\s]+)\s+(.*)$/i);
+        }
+
+        // Handle unusual format: [COLUMN_NAME] (VARCHAR)(32)
+        if (!columnMatch) {
+            columnMatch = part.match(
+                /^\s*\[?(\w+)\]?\s+\((\w+)\)\s*\(([\d,\s]+|max)\)(.*)$/i
+            );
+        }
+
+        if (columnMatch) {
+            const [, colName, baseType, typeArgs, rest] = columnMatch;
+
+            if (
+                colName &&
+                !colName.match(/^(PRIMARY|FOREIGN|UNIQUE|CHECK)$/i)
+            ) {
+                // Check for inline foreign key
+                const inlineFkMatch = rest.match(
+                    /FOREIGN\s+KEY\s+REFERENCES\s+(?:\[?(\w+)\]?\.)??\[?(\w+)\]?\s*\(([^)]+)\)/i
+                );
+
+                // Also check if there's a FOREIGN KEY after a comma with column name
+                // Format: , FOREIGN KEY (columnname) REFERENCES Table(column)
+                if (!inlineFkMatch && rest.includes('FOREIGN KEY')) {
+                    const fkWithColumnMatch = rest.match(
+                        /,\s*FOREIGN\s+KEY\s*\((\w+)\)\s+REFERENCES\s+(?:\[?(\w+)\]?\.)??\[?(\w+)\]?\s*\(([^)]+)\)/i
+                    );
+                    if (fkWithColumnMatch) {
+                        const [, srcCol, targetSchema, targetTable, targetCol] =
+                            fkWithColumnMatch;
+                        // Only process if srcCol matches current colName (case-insensitive)
+                        if (srcCol.toLowerCase() === colName.toLowerCase()) {
+                            // Create FK relationship
+                            relationships.push({
+                                name: `FK_${tableName}_${colName}`,
+                                sourceTable: tableName,
+                                sourceSchema: schema,
+                                sourceColumn: colName,
+                                targetTable: targetTable || targetSchema,
+                                targetSchema: targetTable
+                                    ? targetSchema || 'dbo'
+                                    : 'dbo',
+                                targetColumn: targetCol
+                                    .trim()
+                                    .replace(/\[|\]/g, ''),
+                                sourceTableId: tableId,
+                                targetTableId: '', // Will be filled later
+                            });
+                        }
+                    }
+                } else if (inlineFkMatch) {
+                    const [, targetSchema = 'dbo', targetTable, targetCol] =
+                        inlineFkMatch;
+                    relationships.push({
+                        name: `FK_${tableName}_${colName}`,
+                        sourceTable: tableName,
+                        sourceSchema: schema,
+                        sourceColumn: colName,
+                        targetTable: targetTable,
+                        targetSchema: targetSchema,
+                        targetColumn: targetCol.trim().replace(/\[|\]/g, ''),
+                        sourceTableId: tableId,
+                        targetTableId: '', // Will be filled later
+                    });
+                }
+
+                const isPrimaryKey = !!rest.match(/PRIMARY\s+KEY/i);
+                const isNotNull = !!rest.match(/NOT\s+NULL/i);
+                const isIdentity = !!rest.match(
+                    /IDENTITY(?:\s*\(\s*\d+\s*,\s*\d+\s*\))?/i
+                );
+                const isUnique = !!rest.match(/UNIQUE/i);
+                const defaultMatch = rest.match(/DEFAULT\s+([^,]+)/i);
+
+                // Parse type arguments
+                let parsedTypeArgs: number[] | string | undefined;
+                if (typeArgs) {
+                    if (typeArgs.toLowerCase() === 'max') {
+                        // Preserve 'max' keyword for varchar/nvarchar types
+                        parsedTypeArgs = 'max';
+                    } else {
+                        // Parse numeric args
+                        parsedTypeArgs = typeArgs
+                            .split(',')
+                            .map((arg) => parseInt(arg.trim()));
+                    }
+                }
+
+                const column: SQLColumn = {
+                    name: colName,
+                    type: normalizeSQLServerDataType(baseType.trim()),
+                    nullable: !isNotNull && !isPrimaryKey,
+                    primaryKey: isPrimaryKey,
+                    unique: isUnique,
+                    increment: isIdentity,
+                    default: defaultMatch ? defaultMatch[1].trim() : undefined,
+                };
+
+                // Add type arguments if present
+                if (parsedTypeArgs) {
+                    if (typeof parsedTypeArgs === 'string') {
+                        // For 'max' keyword
+                        column.typeArgs = parsedTypeArgs;
+                    } else if (parsedTypeArgs.length > 0) {
+                        // For numeric arguments
+                        column.typeArgs = parsedTypeArgs;
+                    }
+                }
+
+                columns.push(column);
+            }
+        }
+    }
+
+    // Extract check constraints
+    const checkConstraints = extractCheckConstraintsFromCreateTable(statement);
+
+    // Add the table
+    tables.push({
+        id: tableId,
+        name: tableName,
+        schema: schema,
+        columns,
+        indexes,
+        checkConstraints:
+            checkConstraints.length > 0 ? checkConstraints : undefined,
+        order: tables.length,
+    });
+}
+
+/**
  * Parse SQL Server DDL scripts and extract database structure
  * @param sqlContent SQL Server DDL content as string
  * @returns Parsed structure including tables, columns, and relationships
@@ -280,83 +780,200 @@ export async function fromSQLServer(
     const tableMap: Record<string, string> = {}; // Maps table name to its ID
 
     try {
-        // Preprocess the SQL content to handle T-SQL specific syntax
-        const preprocessedSQL = preprocessSQLServerScript(sqlContent);
-
-        const statements = sqlContent
-            .split(';')
+        // First, handle ALTER TABLE statements for foreign keys
+        // Split by GO or semicolon for SQL Server
+        let statements = sqlContent
+            .split(/(?:GO\s*$|;\s*$)/im)
             .filter((stmt) => stmt.trim().length > 0);
+
+        // Additional splitting for CREATE TABLE statements that might not be separated by semicolons
+        // If we have a statement with multiple CREATE TABLE, split them
+        const expandedStatements: string[] = [];
+        for (const stmt of statements) {
+            // Check if this statement contains multiple CREATE TABLE statements
+            if ((stmt.match(/CREATE\s+TABLE/gi) || []).length > 1) {
+                // Split by ") ON [PRIMARY]" followed by CREATE TABLE
+                const parts = stmt.split(
+                    /\)\s*ON\s*\[PRIMARY\]\s*(?=CREATE\s+TABLE)/gi
+                );
+                for (let i = 0; i < parts.length; i++) {
+                    let part = parts[i].trim();
+                    // Re-add ") ON [PRIMARY]" to all parts except the last (which should already have it)
+                    if (i < parts.length - 1 && part.length > 0) {
+                        part += ') ON [PRIMARY]';
+                    }
+                    if (part.trim().length > 0) {
+                        expandedStatements.push(part);
+                    }
+                }
+            } else {
+                expandedStatements.push(stmt);
+            }
+        }
+        statements = expandedStatements;
+
         const alterTableStatements = statements.filter(
             (stmt) =>
-                stmt.trim().toUpperCase().startsWith('ALTER TABLE') &&
+                stmt.trim().toUpperCase().includes('ALTER TABLE') &&
                 stmt.includes('FOREIGN KEY')
         );
 
         if (alterTableStatements.length > 0) {
-            const { fkData, tableMap: fkTableMap } =
-                parseAlterTableAddConstraint(alterTableStatements);
-
-            // Store table IDs from alter statements
-            Object.assign(tableMap, fkTableMap);
-
+            const fkData = parseAlterTableAddConstraint(alterTableStatements);
             // Store foreign key relationships for later processing
             relationships.push(...fkData);
         }
 
-        const { Parser } = await import('node-sql-parser');
-        const parser = new Parser();
-        let ast;
-        try {
-            ast = parser.astify(preprocessedSQL, parserOpts);
-        } catch {
-            // Fallback: Try to parse each statement individually
-            const statements = preprocessedSQL
-                .split(';')
-                .filter((stmt) => stmt.trim().length > 0);
-            ast = [];
+        // Parse CREATE TABLE statements manually first
+        const createTableStatements = statements.filter((stmt) =>
+            stmt.trim().toUpperCase().includes('CREATE TABLE')
+        );
 
-            for (const stmt of statements) {
-                try {
-                    const stmtAst = parser.astify(stmt + ';', parserOpts);
-                    if (Array.isArray(stmtAst)) {
-                        ast.push(...stmtAst);
-                    } else if (stmtAst) {
-                        ast.push(stmtAst);
-                    }
-                } catch {
-                    // Skip statements that can't be parsed
+        for (const stmt of createTableStatements) {
+            parseCreateTableManually(stmt, tables, tableMap, relationships);
+        }
+
+        // Parse CREATE VIEW statements
+        const createViewStatements = statements.filter((stmt) => {
+            const upperStmt = stmt.trim().toUpperCase();
+            return (
+                upperStmt.includes('CREATE VIEW') ||
+                upperStmt.includes('CREATE OR ALTER VIEW')
+            );
+        });
+
+        for (const stmt of createViewStatements) {
+            // Extract view name and schema
+            // Handle: CREATE VIEW schema.viewname, CREATE VIEW [schema].[viewname], etc.
+            const viewMatch = stmt.match(
+                /CREATE\s+(?:OR\s+ALTER\s+)?VIEW\s+(?:\[?(\w+)\]?\.)?\[?(\w+)\]?/i
+            );
+
+            if (viewMatch) {
+                // If there's a dot in the view reference, group 1 is schema, group 2 is name
+                // Otherwise, group 1 is undefined and group 2 is the name
+                const schema = viewMatch[1] || 'dbo';
+                const viewName = viewMatch[2];
+
+                if (viewName) {
+                    const viewId = generateId();
+                    const viewKey = `${schema}.${viewName}`;
+                    tableMap[viewKey] = viewId;
+
+                    // Extract columns from the view definition
+                    const columns = extractColumnsFromView(stmt);
+
+                    // Create view object (as a table with isView: true)
+                    tables.push({
+                        id: viewId,
+                        name: viewName,
+                        schema: schema,
+                        columns,
+                        indexes: [], // Views don't have indexes
+                        order: tables.length,
+                        isView: true,
+                    });
                 }
             }
         }
 
-        if (!Array.isArray(ast) || ast.length === 0) {
-            throw new Error('Failed to parse SQL DDL - Empty or invalid AST');
+        // Preprocess the SQL content for node-sql-parser
+        const preprocessedSQL = preprocessSQLServerScript(sqlContent);
+
+        // Try to use node-sql-parser for additional parsing
+        try {
+            const { Parser } = await import('node-sql-parser');
+            const parser = new Parser();
+            let ast;
+            try {
+                ast = parser.astify(preprocessedSQL, parserOpts);
+            } catch {
+                // Fallback: Try to parse each statement individually
+                const statements = preprocessedSQL
+                    .split(';')
+                    .filter((stmt) => stmt.trim().length > 0);
+                ast = [];
+
+                for (const stmt of statements) {
+                    try {
+                        const stmtAst = parser.astify(stmt + ';', parserOpts);
+                        if (Array.isArray(stmtAst)) {
+                            ast.push(...stmtAst);
+                        } else if (stmtAst) {
+                            ast.push(stmtAst);
+                        }
+                    } catch {
+                        // Skip statements that can't be parsed
+                    }
+                }
+            }
+
+            if (Array.isArray(ast) && ast.length > 0) {
+                // Process each statement
+                (ast as unknown as SQLASTNode[]).forEach((stmt) => {
+                    // Process CREATE INDEX statements
+                    if (stmt.type === 'create' && stmt.keyword === 'index') {
+                        processCreateIndex(
+                            stmt as CreateIndexStatement,
+                            tables
+                        );
+                    }
+                    // Process ALTER TABLE statements for non-FK constraints
+                    else if (
+                        stmt.type === 'alter' &&
+                        stmt.keyword === 'table'
+                    ) {
+                        processAlterTable(
+                            stmt as AlterTableStatement,
+                            tables,
+                            relationships
+                        );
+                    }
+                });
+            }
+        } catch (parserError) {
+            // If parser fails completely, continue with manual parsing results
+            console.warn(
+                'node-sql-parser failed, using manual parsing only:',
+                parserError
+            );
         }
 
-        // Process each statement
-        (ast as unknown as SQLASTNode[]).forEach((stmt) => {
-            // Process CREATE TABLE statements
-            if (stmt.type === 'create' && stmt.keyword === 'table') {
-                processCreateTable(
-                    stmt as CreateTableStatement,
-                    tables,
-                    tableMap,
-                    relationships
+        // Parse CREATE INDEX statements manually
+        const createIndexStatements = statements.filter(
+            (stmt) =>
+                stmt.trim().toUpperCase().includes('CREATE') &&
+                stmt.trim().toUpperCase().includes('INDEX')
+        );
+
+        for (const stmt of createIndexStatements) {
+            const indexMatch = stmt.match(
+                /CREATE\s+(UNIQUE\s+)?INDEX\s+\[?(\w+)\]?\s+ON\s+(?:\[?(\w+)\]?\.)??\[?(\w+)\]?\s*\(([^)]+)\)/i
+            );
+            if (indexMatch) {
+                const [
+                    ,
+                    unique,
+                    indexName,
+                    schema = 'dbo',
+                    tableName,
+                    columnsStr,
+                ] = indexMatch;
+                const table = tables.find(
+                    (t) => t.name === tableName && t.schema === schema
                 );
+                if (table) {
+                    const columns = columnsStr
+                        .split(',')
+                        .map((c) => c.trim().replace(/\[|\]/g, ''));
+                    table.indexes.push({
+                        name: indexName,
+                        columns,
+                        unique: !!unique,
+                    });
+                }
             }
-            // Process CREATE INDEX statements
-            else if (stmt.type === 'create' && stmt.keyword === 'index') {
-                processCreateIndex(stmt as CreateIndexStatement, tables);
-            }
-            // Process ALTER TABLE statements
-            else if (stmt.type === 'alter' && stmt.keyword === 'table') {
-                processAlterTable(
-                    stmt as AlterTableStatement,
-                    tables,
-                    relationships
-                );
-            }
-        });
+        }
 
         // Link relationships to ensure all targetTableId and sourceTableId fields are filled
         const validRelationships = linkRelationships(
@@ -377,233 +994,6 @@ export async function fromSQLServer(
         console.error('Error parsing SQL Server DDL:', error);
         throw new Error(`Error parsing SQL Server DDL: ${error}`);
     }
-}
-
-/**
- * Process a CREATE TABLE statement
- */
-function processCreateTable(
-    stmt: CreateTableStatement,
-    tables: SQLTable[],
-    tableMap: Record<string, string>,
-    relationships: SQLForeignKey[]
-): void {
-    let tableName = '';
-    let schemaName = '';
-
-    // Extract table name and schema
-    if (stmt.table && typeof stmt.table === 'object') {
-        // Handle array of tables if needed
-        if (Array.isArray(stmt.table) && stmt.table.length > 0) {
-            const tableObj = stmt.table[0];
-            tableName = tableObj.table || '';
-            // SQL Server uses 'schema' or 'db' field
-            schemaName = tableObj.schema || tableObj.db || '';
-        } else {
-            // Direct object reference
-            const tableObj = stmt.table as TableReference;
-            tableName = tableObj.table || '';
-            schemaName = tableObj.schema || tableObj.db || '';
-        }
-    }
-
-    if (!tableName) {
-        return;
-    }
-
-    // If no schema specified, use default 'dbo' schema for SQL Server
-    if (!schemaName) {
-        schemaName = 'dbo';
-    }
-
-    // Generate a unique ID for the table
-    const tableId = generateId();
-    const tableKey = `${schemaName ? schemaName + '.' : ''}${tableName}`;
-    tableMap[tableKey] = tableId;
-
-    // Process table columns
-    const columns: SQLColumn[] = [];
-    const indexes: SQLIndex[] = [];
-
-    if (stmt.create_definitions && Array.isArray(stmt.create_definitions)) {
-        stmt.create_definitions.forEach(
-            (def: ColumnDefinition | ConstraintDefinition) => {
-                if (def.resource === 'column') {
-                    // Process column definition
-                    const columnDef = def as ColumnDefinition;
-                    const columnName = extractColumnName(columnDef.column);
-                    const rawDataType = columnDef.definition?.dataType || '';
-                    const normalizedDataType =
-                        normalizeSQLServerDataType(rawDataType);
-
-                    if (columnName) {
-                        // Check for SQL Server specific column properties
-                        const isPrimaryKey =
-                            columnDef.primary_key === 'primary key';
-
-                        // For SQL Server, check for IDENTITY property in suffixes
-                        const hasIdentity = columnDef.definition?.suffix?.some(
-                            (suffix) =>
-                                suffix.toLowerCase().includes('identity')
-                        );
-
-                        columns.push({
-                            name: columnName,
-                            type: normalizedDataType,
-                            nullable: columnDef.nullable?.type !== 'not null',
-                            primaryKey: isPrimaryKey,
-                            unique: columnDef.unique === 'unique',
-                            typeArgs: getTypeArgs(columnDef.definition),
-                            default: columnDef.default_val
-                                ? safelyBuildSQLFromAST(columnDef.default_val)
-                                : undefined,
-                            increment: hasIdentity,
-                        });
-                    }
-                } else if (def.resource === 'constraint') {
-                    // Handle constraint definitions
-                    const constraintDef = def as ConstraintDefinition;
-
-                    // Handle PRIMARY KEY constraints
-                    if (constraintDef.constraint_type === 'primary key') {
-                        if (Array.isArray(constraintDef.definition)) {
-                            // Extract column names from primary key constraint
-                            for (const colDef of constraintDef.definition) {
-                                if (
-                                    colDef &&
-                                    typeof colDef === 'object' &&
-                                    'type' in colDef &&
-                                    colDef.type === 'column_ref' &&
-                                    'column' in colDef
-                                ) {
-                                    const pkColumnName = extractColumnName(
-                                        colDef as ColumnReference
-                                    );
-                                    // Find and mark the column as primary key
-                                    const column = columns.find(
-                                        (col) => col.name === pkColumnName
-                                    );
-                                    if (column) {
-                                        column.primaryKey = true;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    // Handle UNIQUE constraints
-                    else if (constraintDef.constraint_type === 'unique') {
-                        if (Array.isArray(constraintDef.definition)) {
-                            const uniqueColumns: string[] = [];
-                            // Extract column names from unique constraint
-                            for (const colDef of constraintDef.definition) {
-                                if (
-                                    colDef &&
-                                    typeof colDef === 'object' &&
-                                    'type' in colDef &&
-                                    colDef.type === 'column_ref' &&
-                                    'column' in colDef
-                                ) {
-                                    const uniqueColumnName = extractColumnName(
-                                        colDef as ColumnReference
-                                    );
-                                    uniqueColumns.push(uniqueColumnName);
-                                }
-                            }
-
-                            // Add as an index
-                            if (uniqueColumns.length > 0) {
-                                indexes.push({
-                                    name:
-                                        constraintDef.constraint ||
-                                        `unique_${tableName}_${uniqueColumns.join('_')}`,
-                                    columns: uniqueColumns,
-                                    unique: true,
-                                });
-                            }
-                        }
-                    }
-                    // Handle FOREIGN KEY constraints
-                    else if (
-                        constraintDef.constraint_type === 'foreign key' &&
-                        constraintDef.reference
-                    ) {
-                        const reference = constraintDef.reference;
-                        if (
-                            reference &&
-                            reference.table &&
-                            reference.columns &&
-                            reference.columns.length > 0
-                        ) {
-                            // Extract target table info
-                            const targetTable =
-                                reference.table as TableReference;
-                            const targetTableName = targetTable.table;
-                            const targetSchemaName =
-                                targetTable.schema || targetTable.db || 'dbo';
-
-                            // Extract source column
-                            let sourceColumnName = '';
-                            if (
-                                Array.isArray(constraintDef.definition) &&
-                                constraintDef.definition.length > 0
-                            ) {
-                                const sourceColDef =
-                                    constraintDef.definition[0];
-                                if (
-                                    sourceColDef &&
-                                    typeof sourceColDef === 'object' &&
-                                    'type' in sourceColDef &&
-                                    sourceColDef.type === 'column_ref'
-                                ) {
-                                    sourceColumnName = extractColumnName(
-                                        sourceColDef as ColumnReference
-                                    );
-                                }
-                            }
-
-                            // Extract target column
-                            const targetColumnName = extractColumnName(
-                                reference.columns[0]
-                            );
-
-                            if (
-                                sourceColumnName &&
-                                targetTableName &&
-                                targetColumnName
-                            ) {
-                                // Create a foreign key relationship
-                                relationships.push({
-                                    name:
-                                        constraintDef.constraint ||
-                                        `fk_${tableName}_${sourceColumnName}`,
-                                    sourceTable: tableName,
-                                    sourceSchema: schemaName,
-                                    sourceColumn: sourceColumnName,
-                                    targetTable: targetTableName,
-                                    targetSchema: targetSchemaName,
-                                    targetColumn: targetColumnName,
-                                    sourceTableId: tableId,
-                                    targetTableId: '', // Will be filled later
-                                    updateAction: reference.on_update,
-                                    deleteAction: reference.on_delete,
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-        );
-    }
-
-    // Create the table object
-    tables.push({
-        id: tableId,
-        name: tableName,
-        schema: schemaName,
-        columns,
-        indexes,
-        order: tables.length,
-    });
 }
 
 /**

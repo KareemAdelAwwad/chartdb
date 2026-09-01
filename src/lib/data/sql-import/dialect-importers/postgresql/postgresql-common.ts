@@ -91,7 +91,38 @@ export interface AlterTableExprItem {
     action: string;
     resource?: string;
     type?: string;
+    keyword?: string;
     constraint?: { constraint_type?: string };
+    // Properties for ADD COLUMN
+    column?:
+        | {
+              column?:
+                  | {
+                        expr?: {
+                            value?: string;
+                        };
+                    }
+                  | string;
+          }
+        | string
+        | ColumnReference;
+    definition?: {
+        dataType?: string;
+        length?: number;
+        precision?: number;
+        scale?: number;
+        suffix?: unknown[];
+        nullable?: { type: string };
+        unique?: string;
+        primary_key?: string;
+        constraint?: string;
+        default_val?: unknown;
+        auto_increment?: string;
+    };
+    nullable?: { type: string; value?: string };
+    unique?: string;
+    default_val?: unknown;
+    // Properties for constraints
     create_definitions?:
         | AlterTableConstraintDefinition
         | {
@@ -167,13 +198,17 @@ export function getTypeArgs(
 
     if (!definition) return typeArgs;
 
-    if (definition.length !== undefined) {
-        typeArgs.length = definition.length;
-    }
-
-    if (definition.scale !== undefined && definition.precision !== undefined) {
-        typeArgs.precision = definition.precision;
+    // node-sql-parser stores precision as 'length' for DECIMAL/NUMERIC types
+    // Check if scale is present to determine if this is a numeric type with precision
+    if (definition.scale !== undefined) {
+        // When scale exists, length represents precision (for DECIMAL/NUMERIC)
+        // or precision property is directly available
+        typeArgs.precision = definition.precision ?? definition.length;
         typeArgs.scale = definition.scale;
+    } else if (definition.precision !== undefined) {
+        typeArgs.precision = definition.precision;
+    } else if (definition.length !== undefined) {
+        typeArgs.length = definition.length;
     }
 
     return typeArgs;
@@ -203,11 +238,6 @@ export function findTableWithSchemaSupport(
     // If still not found with schema, try any match on the table name
     if (!table) {
         table = tables.find((t) => t.name === tableName);
-        if (table) {
-            console.log(
-                `Found table ${tableName} without schema match, source schema: ${effectiveSchema}, table schema: ${table.schema}`
-            );
-        }
     }
 
     return table;
@@ -235,11 +265,7 @@ export function getTableIdWithSchemaSupport(
     // If still not found with schema, try without schema
     if (!tableId) {
         tableId = tableMap[tableName];
-        if (tableId) {
-            console.log(
-                `Found table ID for ${tableName} without schema match, source schema: ${effectiveSchema}`
-            );
-        } else {
+        if (!tableId) {
             console.warn(
                 `No table ID found for ${tableName} with schema ${effectiveSchema}`
             );

@@ -1,5 +1,9 @@
 import React from 'react';
-import type { LayoutContext, SidebarSection } from './layout-context';
+import type {
+    LayoutContext,
+    SidebarSection,
+    VisualsTab,
+} from './layout-context';
 import { layoutContext } from './layout-context';
 import { useBreakpoint } from '@/hooks/use-breakpoint';
 
@@ -10,33 +14,41 @@ export const LayoutProvider: React.FC<React.PropsWithChildren> = ({
     const [openedTableInSidebar, setOpenedTableInSidebar] = React.useState<
         string | undefined
     >();
-    const [openedRelationshipInSidebar, setOpenedRelationshipInSidebar] =
-        React.useState<string | undefined>();
-    const [openedDependencyInSidebar, setOpenedDependencyInSidebar] =
-        React.useState<string | undefined>();
+    const [openedRefInSidebar, setOpenedRefInSidebar] = React.useState<
+        string | undefined
+    >();
     const [openedAreaInSidebar, setOpenedAreaInSidebar] = React.useState<
+        string | undefined
+    >();
+    const [openedNoteInSidebar, setOpenedNoteInSidebar] = React.useState<
         string | undefined
     >();
     const [openedCustomTypeInSidebar, setOpenedCustomTypeInSidebar] =
         React.useState<string | undefined>();
     const [selectedSidebarSection, setSelectedSidebarSection] =
         React.useState<SidebarSection>('tables');
+    const [selectedVisualsTab, setSelectedVisualsTab] =
+        React.useState<VisualsTab>('areas');
     const [isSidePanelShowed, setIsSidePanelShowed] =
         React.useState<boolean>(isDesktop);
-    const [isSelectSchemaOpen, setIsSelectSchemaOpen] =
-        React.useState<boolean>(false);
 
     const closeAllTablesInSidebar: LayoutContext['closeAllTablesInSidebar'] =
         () => setOpenedTableInSidebar('');
 
     const closeAllRelationshipsInSidebar: LayoutContext['closeAllRelationshipsInSidebar'] =
-        () => setOpenedRelationshipInSidebar('');
+        () => setOpenedRefInSidebar('');
 
     const closeAllDependenciesInSidebar: LayoutContext['closeAllDependenciesInSidebar'] =
-        () => setOpenedDependencyInSidebar('');
+        () => setOpenedRefInSidebar('');
+
+    const closeAllRefsInSidebar: LayoutContext['closeAllRefsInSidebar'] = () =>
+        setOpenedRefInSidebar('');
 
     const closeAllAreasInSidebar: LayoutContext['closeAllAreasInSidebar'] =
         () => setOpenedAreaInSidebar('');
+
+    const closeAllNotesInSidebar: LayoutContext['closeAllNotesInSidebar'] =
+        () => setOpenedNoteInSidebar('');
 
     const closeAllCustomTypesInSidebar: LayoutContext['closeAllCustomTypesInSidebar'] =
         () => setOpenedCustomTypeInSidebar('');
@@ -62,23 +74,39 @@ export const LayoutProvider: React.FC<React.PropsWithChildren> = ({
     const openRelationshipFromSidebar: LayoutContext['openRelationshipFromSidebar'] =
         (relationshipId) => {
             showSidePanel();
-            setSelectedSidebarSection('relationships');
-            setOpenedRelationshipInSidebar(relationshipId);
+            setSelectedSidebarSection('refs');
+            setOpenedRefInSidebar(relationshipId);
         };
 
     const openDependencyFromSidebar: LayoutContext['openDependencyFromSidebar'] =
         (dependencyId) => {
             showSidePanel();
-            setSelectedSidebarSection('dependencies');
-            setOpenedDependencyInSidebar(dependencyId);
+            setSelectedSidebarSection('refs');
+            setOpenedRefInSidebar(dependencyId);
         };
+
+    const openRefFromSidebar: LayoutContext['openRefFromSidebar'] = (refId) => {
+        showSidePanel();
+        setSelectedSidebarSection('refs');
+        setOpenedRefInSidebar(refId);
+    };
 
     const openAreaFromSidebar: LayoutContext['openAreaFromSidebar'] = (
         areaId
     ) => {
         showSidePanel();
-        setSelectedSidebarSection('areas');
+        setSelectedSidebarSection('visuals');
+        setSelectedVisualsTab('areas');
         setOpenedAreaInSidebar(areaId);
+    };
+
+    const openNoteFromSidebar: LayoutContext['openNoteFromSidebar'] = (
+        noteId
+    ) => {
+        showSidePanel();
+        setSelectedSidebarSection('visuals');
+        setSelectedVisualsTab('notes');
+        setOpenedNoteInSidebar(noteId);
     };
 
     const openCustomTypeFromSidebar: LayoutContext['openCustomTypeFromSidebar'] =
@@ -88,11 +116,6 @@ export const LayoutProvider: React.FC<React.PropsWithChildren> = ({
             setOpenedTableInSidebar(customTypeId);
         };
 
-    const openSelectSchema: LayoutContext['openSelectSchema'] = () =>
-        setIsSelectSchemaOpen(true);
-
-    const closeSelectSchema: LayoutContext['closeSelectSchema'] = () =>
-        setIsSelectSchemaOpen(false);
     return (
         <layoutContext.Provider
             value={{
@@ -100,7 +123,6 @@ export const LayoutProvider: React.FC<React.PropsWithChildren> = ({
                 selectedSidebarSection,
                 openTableFromSidebar,
                 selectSidebarSection: setSelectedSidebarSection,
-                openedRelationshipInSidebar,
                 openRelationshipFromSidebar,
                 closeAllTablesInSidebar,
                 closeAllRelationshipsInSidebar,
@@ -108,18 +130,22 @@ export const LayoutProvider: React.FC<React.PropsWithChildren> = ({
                 hideSidePanel,
                 showSidePanel,
                 toggleSidePanel,
-                isSelectSchemaOpen,
-                openSelectSchema,
-                closeSelectSchema,
-                openedDependencyInSidebar,
                 openDependencyFromSidebar,
                 closeAllDependenciesInSidebar,
+                openedRefInSidebar,
+                openRefFromSidebar,
+                closeAllRefsInSidebar,
                 openedAreaInSidebar,
                 openAreaFromSidebar,
                 closeAllAreasInSidebar,
+                openedNoteInSidebar,
+                openNoteFromSidebar,
+                closeAllNotesInSidebar,
                 openedCustomTypeInSidebar,
                 openCustomTypeFromSidebar,
                 closeAllCustomTypesInSidebar,
+                selectedVisualsTab,
+                selectVisualsTab: setSelectedVisualsTab,
             }}
         >
             {children}

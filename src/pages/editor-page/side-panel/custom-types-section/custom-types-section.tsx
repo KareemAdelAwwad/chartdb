@@ -6,20 +6,15 @@ import { useChartDB } from '@/hooks/use-chartdb';
 import { EmptyState } from '@/components/empty-state/empty-state';
 import { ScrollArea } from '@/components/scroll-area/scroll-area';
 import { useTranslation } from 'react-i18next';
-import { useHotkeys } from 'react-hotkeys-hook';
-import { getOperatingSystem } from '@/lib/utils';
 import { CustomTypeList } from './custom-type-list/custom-type-list';
-import { DatabaseType } from '@/lib/domain/database-type';
 
 export interface CustomTypesSectionProps {}
 
 export const CustomTypesSection: React.FC<CustomTypesSectionProps> = () => {
     const { t } = useTranslation();
-    const { customTypes, createCustomType, databaseType } = useChartDB();
+    const { customTypes, createCustomType, readonly } = useChartDB();
     const [filterText, setFilterText] = React.useState('');
     const filterInputRef = React.useRef<HTMLInputElement>(null);
-
-    const isPostgres = databaseType === DatabaseType.POSTGRESQL;
 
     const filteredCustomTypes = useMemo(() => {
         return customTypes.filter(
@@ -36,19 +31,6 @@ export const CustomTypesSection: React.FC<CustomTypesSectionProps> = () => {
     const handleCreateCustomType = useCallback(async () => {
         await createCustomType();
     }, [createCustomType]);
-
-    const operatingSystem = useMemo(() => getOperatingSystem(), []);
-
-    useHotkeys(
-        operatingSystem === 'mac' ? 'meta+f' : 'ctrl+f',
-        () => {
-            filterInputRef.current?.focus();
-        },
-        {
-            preventDefault: true,
-        },
-        [filterInputRef]
-    );
 
     return (
         <section
@@ -68,7 +50,7 @@ export const CustomTypesSection: React.FC<CustomTypesSectionProps> = () => {
                         onChange={(e) => setFilterText(e.target.value)}
                     />
                 </div>
-                {isPostgres && (
+                {!readonly ? (
                     <Button
                         variant="secondary"
                         size="sm"
@@ -76,9 +58,9 @@ export const CustomTypesSection: React.FC<CustomTypesSectionProps> = () => {
                         onClick={handleCreateCustomType}
                     >
                         <Plus className="mr-1 size-4" />
-                        New Type
+                        {t('side_panel.custom_types_section.new_type')}
                     </Button>
-                )}
+                ) : null}
             </div>
             <div className="flex flex-1 flex-col overflow-hidden">
                 <ScrollArea className="h-full">
@@ -91,6 +73,16 @@ export const CustomTypesSection: React.FC<CustomTypesSectionProps> = () => {
                                 'side_panel.custom_types_section.empty_state.description'
                             )}
                             className="mt-20"
+                            secondaryAction={
+                                !readonly
+                                    ? {
+                                          label: t(
+                                              'side_panel.custom_types_section.new_type'
+                                          ),
+                                          onClick: handleCreateCustomType,
+                                      }
+                                    : undefined
+                            }
                         />
                     ) : filterText && filteredCustomTypes.length === 0 ? (
                         <div className="mt-10 flex flex-col items-center gap-2">

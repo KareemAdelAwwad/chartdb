@@ -17,15 +17,22 @@ import { useDialog } from '@/hooks/use-dialog';
 import {
     exportBaseSQL,
     exportSQL,
-} from '@/lib/data/export-metadata/export-sql-script';
+} from '@/lib/data/sql-export/export-sql-script';
+import { hasCrossDialectSupport } from '@/lib/data/sql-export/cross-dialect';
 import { databaseTypeToLabelMap } from '@/lib/databases';
 import { DatabaseType } from '@/lib/domain/database-type';
-import { shouldShowTablesBySchemaFilter } from '@/lib/domain/db-table';
-import { Annoyed, Sparkles } from 'lucide-react';
-import React, { useCallback, useEffect, useRef } from 'react';
+import { Annoyed, Sparkles, Blocks, Wand2 } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import type { BaseDialogProps } from '../common/base-dialog-props';
 import type { Diagram } from '@/lib/domain/diagram';
+import { useDiagramFilter } from '@/context/diagram-filter-context/use-diagram-filter';
+import {
+    filterDependency,
+    filterRelationship,
+    filterTable,
+} from '@/lib/domain/diagram-filter/filter';
+import { defaultSchemas } from '@/lib/data/default-schemas';
 
 export interface ExportSQLDialogProps extends BaseDialogProps {
     targetDatabaseType: DatabaseType;
@@ -36,19 +43,51 @@ export const ExportSQLDialog: React.FC<ExportSQLDialogProps> = ({
     targetDatabaseType,
 }) => {
     const { closeExportSQLDialog } = useDialog();
-    const { currentDiagram, filteredSchemas } = useChartDB();
+    const { currentDiagram } = useChartDB();
+    const { filter } = useDiagramFilter();
     const { t } = useTranslation();
     const [script, setScript] = React.useState<string>();
     const [error, setError] = React.useState<boolean>(false);
     const [isScriptLoading, setIsScriptLoading] =
         React.useState<boolean>(false);
+    const [useAIExport, setUseAIExport] = React.useState<boolean>(false);
     const abortControllerRef = useRef<AbortController | null>(null);
+
+    // Check if a deterministic export path is available
+    const hasDeterministicPath = useMemo(() => {
+        return (
+            targetDatabaseType === DatabaseType.GENERIC ||
+            currentDiagram.databaseType === targetDatabaseType ||
+            hasCrossDialectSupport(
+                currentDiagram.databaseType,
+                targetDatabaseType
+            )
+        );
+    }, [targetDatabaseType, currentDiagram.databaseType]);
+
+    // Show toggle only for cross-dialect exports where both options are available
+    const showExportModeToggle = useMemo(() => {
+        return (
+            hasDeterministicPath &&
+            currentDiagram.databaseType !== targetDatabaseType &&
+            targetDatabaseType !== DatabaseType.GENERIC
+        );
+    }, [hasDeterministicPath, currentDiagram.databaseType, targetDatabaseType]);
 
     const exportSQLScript = useCallback(async () => {
         const filteredDiagram: Diagram = {
             ...currentDiagram,
             tables: currentDiagram.tables?.filter((table) =>
-                shouldShowTablesBySchemaFilter(table, filteredSchemas)
+                filterTable({
+                    table: {
+                        id: table.id,
+                        schema: table.schema,
+                    },
+                    filter,
+                    options: {
+                        defaultSchema: defaultSchemas[targetDatabaseType],
+                    },
+                })
             ),
             relationships: currentDiagram.relationships?.filter((rel) => {
                 const sourceTable = currentDiagram.tables?.find(
@@ -60,11 +99,20 @@ export const ExportSQLDialog: React.FC<ExportSQLDialogProps> = ({
                 return (
                     sourceTable &&
                     targetTable &&
-                    shouldShowTablesBySchemaFilter(
-                        sourceTable,
-                        filteredSchemas
-                    ) &&
-                    shouldShowTablesBySchemaFilter(targetTable, filteredSchemas)
+                    filterRelationship({
+                        tableA: {
+                            id: sourceTable.id,
+                            schema: sourceTable.schema,
+                        },
+                        tableB: {
+                            id: targetTable.id,
+                            schema: targetTable.schema,
+                        },
+                        filter,
+                        options: {
+                            defaultSchema: defaultSchemas[targetDatabaseType],
+                        },
+                    })
                 );
             }),
             dependencies: currentDiagram.dependencies?.filter((dep) => {
@@ -77,16 +125,26 @@ export const ExportSQLDialog: React.FC<ExportSQLDialogProps> = ({
                 return (
                     table &&
                     dependentTable &&
-                    shouldShowTablesBySchemaFilter(table, filteredSchemas) &&
-                    shouldShowTablesBySchemaFilter(
-                        dependentTable,
-                        filteredSchemas
-                    )
+                    filterDependency({
+                        tableA: {
+                            id: table.id,
+                            schema: table.schema,
+                        },
+                        tableB: {
+                            id: dependentTable.id,
+                            schema: dependentTable.schema,
+                        },
+                        filter,
+                        options: {
+                            defaultSchema: defaultSchemas[targetDatabaseType],
+                        },
+                    })
                 );
             }),
         };
 
-        if (targetDatabaseType === DatabaseType.GENERIC) {
+        // Use deterministic export if available and AI export is not selected
+        if (hasDeterministicPath && !useAIExport) {
             return Promise.resolve(
                 exportBaseSQL({
                     diagram: filteredDiagram,
@@ -101,7 +159,13 @@ export const ExportSQLDialog: React.FC<ExportSQLDialogProps> = ({
                 signal: abortControllerRef.current?.signal,
             });
         }
-    }, [targetDatabaseType, currentDiagram, filteredSchemas]);
+    }, [
+        targetDatabaseType,
+        currentDiagram,
+        filter,
+        hasDeterministicPath,
+        useAIExport,
+    ]);
 
     useEffect(() => {
         if (!dialog.open) {
@@ -215,6 +279,36 @@ export const ExportSQLDialog: React.FC<ExportSQLDialogProps> = ({
                                       ],
                         })}
                     </DialogDescription>
+                    {showExportModeToggle && (
+                        <div className="flex items-center pt-2">
+                            <div className="grid h-auto grid-cols-2 gap-1 rounded-xl border bg-background p-1">
+                                <button
+                                    type="button"
+                                    className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1 text-xs transition-all ${
+                                        !useAIExport
+                                            ? 'bg-secondary text-secondary-foreground shadow-sm'
+                                            : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                                    }`}
+                                    onClick={() => setUseAIExport(false)}
+                                >
+                                    <Blocks className="size-3" />
+                                    Deterministic
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1 text-xs transition-all ${
+                                        useAIExport
+                                            ? 'bg-secondary text-secondary-foreground shadow-sm'
+                                            : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                                    }`}
+                                    onClick={() => setUseAIExport(true)}
+                                >
+                                    <Wand2 className="size-3" />
+                                    AI
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </DialogHeader>
                 <DialogInternalContent>
                     <div className="flex flex-1 items-center justify-center">

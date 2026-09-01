@@ -27,6 +27,7 @@ export interface SelectBoxOption {
     regex?: string;
     extractRegex?: RegExp;
     group?: string;
+    icon?: React.ReactNode;
 }
 
 export interface SelectBoxProps {
@@ -53,6 +54,12 @@ export interface SelectBoxProps {
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
     popoverClassName?: string;
+    readonly?: boolean;
+    footerButtons?: React.ReactNode;
+    commandOnMouseDown?: (e: React.MouseEvent) => void;
+    commandOnClick?: (e: React.MouseEvent) => void;
+    onSearchChange?: (search: string) => void;
+    modal?: boolean;
 }
 
 export const SelectBox = React.forwardRef<HTMLInputElement, SelectBoxProps>(
@@ -78,6 +85,12 @@ export const SelectBox = React.forwardRef<HTMLInputElement, SelectBoxProps>(
             open,
             onOpenChange: setOpen,
             popoverClassName,
+            readonly,
+            footerButtons,
+            commandOnMouseDown,
+            commandOnClick,
+            onSearchChange,
+            modal = true,
         },
         ref
     ) => {
@@ -93,6 +106,12 @@ export const SelectBox = React.forwardRef<HTMLInputElement, SelectBoxProps>(
             (isOpen: boolean) => {
                 setOpen?.(isOpen);
                 setIsOpen(isOpen);
+
+                if (isOpen) {
+                    setSearchTerm('');
+                }
+
+                setTimeout(() => (document.body.style.pointerEvents = ''), 500);
             },
             [setOpen]
         );
@@ -146,18 +165,20 @@ export const SelectBox = React.forwardRef<HTMLInputElement, SelectBoxProps>(
                             className={`inline-flex min-w-0 shrink-0 items-center gap-1 rounded-md border py-0.5 pl-2 pr-1 text-xs font-medium text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 ${oneLine ? 'mx-0.5' : ''}`}
                         >
                             <span>{option.label}</span>
-                            <span
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    handleSelect(option.value);
-                                }}
-                                className="flex items-center rounded-sm px-px text-muted-foreground/60 hover:bg-accent hover:text-muted-foreground"
-                            >
-                                <Cross2Icon />
-                            </span>
+                            {!readonly ? (
+                                <span
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        handleSelect(option.value);
+                                    }}
+                                    className="flex items-center rounded-sm px-px text-muted-foreground/60 hover:bg-accent hover:text-muted-foreground"
+                                >
+                                    <Cross2Icon />
+                                </span>
+                            ) : null}
                         </span>
                     )),
-            [options, value, handleSelect, oneLine, keepOrder]
+            [options, value, handleSelect, oneLine, keepOrder, readonly]
         );
 
         const isAllSelected = React.useMemo(
@@ -223,13 +244,19 @@ export const SelectBox = React.forwardRef<HTMLInputElement, SelectBoxProps>(
                     <CommandItem
                         className="flex items-center"
                         key={option.value}
-                        keywords={option.regex ? [option.regex] : undefined}
+                        value={option.label}
+                        keywords={[
+                            ...(option.regex ? [option.regex] : []),
+                            ...(option.description ? [option.description] : []),
+                        ]}
                         onSelect={() =>
                             handleSelect(
                                 option.value,
-                                matches?.map((match) => match.toString())
+                                matches?.map((match) => match?.toString())
                             )
                         }
+                        onMouseDown={commandOnMouseDown}
+                        onClick={commandOnClick}
                     >
                         {multiple && (
                             <div
@@ -244,6 +271,11 @@ export const SelectBox = React.forwardRef<HTMLInputElement, SelectBoxProps>(
                             </div>
                         )}
                         <div className="flex flex-1 items-center truncate">
+                            {option.icon ? (
+                                <span className="mr-2 shrink-0">
+                                    {option.icon}
+                                </span>
+                            ) : null}
                             <span>
                                 {isRegexMatch ? searchTerm : option.label}
                                 {!isRegexMatch && optionSuffix
@@ -270,15 +302,23 @@ export const SelectBox = React.forwardRef<HTMLInputElement, SelectBoxProps>(
                     </CommandItem>
                 );
             },
-            [value, multiple, searchTerm, handleSelect, optionSuffix]
+            [
+                value,
+                multiple,
+                searchTerm,
+                handleSelect,
+                optionSuffix,
+                commandOnClick,
+                commandOnMouseDown,
+            ]
         );
 
         return (
-            <Popover open={isOpen} onOpenChange={onOpenChange} modal={true}>
+            <Popover open={isOpen} onOpenChange={onOpenChange} modal={modal}>
                 <PopoverTrigger asChild tabIndex={0} onKeyDown={handleKeyDown}>
                     <div
                         className={cn(
-                            `flex min-h-[36px] cursor-pointer items-center justify-between rounded-md border px-3 py-1 data-[state=open]:border-ring ${disabled ? 'bg-muted pointer-events-none' : ''}`,
+                            `flex min-h-[36px] cursor-pointer items-center justify-between rounded-md border px-3 py-1 data-[state=open]:border-ring ${disabled ? 'bg-muted pointer-events-none' : ''} ${readonly ? 'pointer-events-none' : ''}`,
                             className
                         )}
                     >
@@ -348,21 +388,27 @@ export const SelectBox = React.forwardRef<HTMLInputElement, SelectBoxProps>(
                         popoverClassName
                     )}
                     align="center"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
                 >
                     <Command
                         filter={(value, search, keywords) => {
+                            const searchLower = search.toLowerCase();
+
                             if (
                                 keywords?.length &&
-                                keywords.some((keyword) =>
-                                    new RegExp(keyword).test(search)
+                                keywords.some(
+                                    (keyword) =>
+                                        keyword
+                                            .toLowerCase()
+                                            .includes(searchLower) ||
+                                        new RegExp(keyword).test(search)
                                 )
                             ) {
                                 return 1;
                             }
 
-                            return value
-                                .toLowerCase()
-                                .includes(search.toLowerCase())
+                            return value.toLowerCase().includes(searchLower)
                                 ? 1
                                 : 0;
                         }}
@@ -370,7 +416,10 @@ export const SelectBox = React.forwardRef<HTMLInputElement, SelectBoxProps>(
                         <div className="relative">
                             <CommandInput
                                 value={searchTerm}
-                                onValueChange={(e) => setSearchTerm(e)}
+                                onValueChange={(e) => {
+                                    setSearchTerm(e);
+                                    onSearchChange?.(e);
+                                }}
                                 ref={ref}
                                 placeholder={inputPlaceholder ?? 'Search...'}
                                 className="h-9"
@@ -437,6 +486,9 @@ export const SelectBox = React.forwardRef<HTMLInputElement, SelectBoxProps>(
                             </div>
                         </ScrollArea>
                     </Command>
+                    {footerButtons ? (
+                        <div className="border-t">{footerButtons}</div>
+                    ) : null}
                 </PopoverContent>
             </Popover>
         );

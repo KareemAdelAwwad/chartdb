@@ -5,6 +5,7 @@ import type {
     SQLIndex,
     SQLForeignKey,
     SQLASTNode,
+    SQLCheckConstraint,
 } from '../../common';
 import type {
     TableReference,
@@ -32,11 +33,11 @@ export async function fromSQLite(sqlContent: string): Promise<SQLParserResult> {
     const tableMap: Record<string, string> = {}; // Maps table name to its ID
 
     try {
-        // SPECIAL HANDLING: Direct line-by-line parser for SQLite DDL
-        // This ensures we preserve the exact data types from the original DDL
+        // SPECIAL HANDLING: Direct regex-based parser for SQLite DDL
+        // This ensures we handle all SQLite-specific syntax including tables without types
         const directlyParsedTables = parseCreateTableStatements(sqlContent);
 
-        // Check if we successfully parsed tables directly
+        // Always try direct parsing first as it's more reliable for SQLite
         if (directlyParsedTables.length > 0) {
             // Map the direct parsing results to the expected SQLParserResult format
             directlyParsedTables.forEach((table) => {
@@ -56,8 +57,19 @@ export async function fromSQLite(sqlContent: string): Promise<SQLParserResult> {
             // Process foreign keys using the regex approach
             findForeignKeysUsingRegex(sqlContent, tableMap, relationships);
 
-            // Return the result
-            return { tables, relationships };
+            // Create placeholder tables for any missing referenced tables
+            addPlaceholderTablesForFKReferences(
+                tables,
+                relationships,
+                tableMap
+            );
+
+            // Filter out any invalid relationships
+            const validRelationships = relationships.filter((rel) => {
+                return isValidForeignKeyRelationship(rel, tables);
+            });
+
+            return { tables, relationships: validRelationships };
         }
 
         // Preprocess SQL to handle SQLite quoted identifiers
@@ -111,10 +123,68 @@ export async function fromSQLite(sqlContent: string): Promise<SQLParserResult> {
             return isValidForeignKeyRelationship(rel, tables);
         });
 
+        // Extract check constraints and add to tables
+        addCheckConstraintsToTables(sqlContent, tables);
+
         return { tables, relationships: validRelationships };
     } catch (error) {
         console.error('Error parsing SQLite SQL:', error);
         throw error;
+    }
+}
+
+/**
+ * Extract check constraints from SQL and add them to existing tables
+ */
+function addCheckConstraintsToTables(
+    sqlContent: string,
+    tables: SQLTable[]
+): void {
+    // Find all CREATE TABLE statements and extract check constraints
+    const createTableRegex =
+        /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:"([^"]+)"|([^\s(]+))\s*\(([\s\S]+?)\)(?:\s*;|\s*$)/gi;
+
+    let match;
+    while ((match = createTableRegex.exec(sqlContent)) !== null) {
+        const tableName = match[1] || match[2];
+        const tableBody = match[3];
+
+        // Find the table in our tables array
+        const table = tables.find(
+            (t) => t.name.toLowerCase() === tableName.toLowerCase()
+        );
+        if (!table) continue;
+
+        // Extract check constraints from this table body
+        const checkPattern =
+            /(?:CONSTRAINT\s+(?:"[^"]+"|[^\s]+)\s+)?CHECK\s*\(/gi;
+        let checkMatch;
+
+        const constraints: SQLCheckConstraint[] = [];
+
+        while ((checkMatch = checkPattern.exec(tableBody)) !== null) {
+            const startIdx = checkMatch.index + checkMatch[0].length;
+            let depth = 1;
+            let endIdx = startIdx;
+
+            // Find the matching closing parenthesis
+            for (let i = startIdx; i < tableBody.length && depth > 0; i++) {
+                if (tableBody[i] === '(') depth++;
+                else if (tableBody[i] === ')') depth--;
+                endIdx = i;
+            }
+
+            if (depth === 0) {
+                const expression = tableBody.substring(startIdx, endIdx).trim();
+                if (expression) {
+                    constraints.push({ expression });
+                }
+            }
+        }
+
+        if (constraints.length > 0) {
+            table.checkConstraints = constraints;
+        }
     }
 }
 
@@ -128,102 +198,224 @@ function parseCreateTableStatements(sqlContent: string): {
     const tables: {
         name: string;
         columns: SQLColumn[];
+        primaryKeyColumns?: string[];
     }[] = [];
 
-    // Split SQL content into lines
-    const lines = sqlContent.split('\n');
-
-    let currentTable: { name: string; columns: SQLColumn[] } | null = null;
-    let inCreateTable = false;
-
-    // Process each line
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-
-        // Skip empty lines and comments
-        if (!line || line.startsWith('--')) {
-            continue;
-        }
-
-        // Check for CREATE TABLE statement
-        if (line.toUpperCase().startsWith('CREATE TABLE')) {
-            // Extract table name
-            const tableNameMatch =
-                /CREATE\s+TABLE\s+(?:if\s+not\s+exists\s+)?["'`]?(\w+)["'`]?/i.exec(
-                    line
-                );
-            if (tableNameMatch && tableNameMatch[1]) {
-                inCreateTable = true;
-                currentTable = {
-                    name: tableNameMatch[1],
-                    columns: [],
-                };
+    // Remove comments before processing
+    const cleanedSQL = sqlContent
+        .split('\n')
+        .map((line) => {
+            const commentIndex = line.indexOf('--');
+            if (commentIndex >= 0) {
+                return line.substring(0, commentIndex);
             }
-        }
-        // Check for end of CREATE TABLE statement
-        else if (inCreateTable && line.includes(');')) {
-            if (currentTable) {
-                tables.push(currentTable);
+            return line;
+        })
+        .join('\n');
+
+    // Match all CREATE TABLE statements including those without column definitions
+    const createTableRegex =
+        /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["'`]?(\w+)["'`]?\s*\(([^;]+?)\)\s*;/gis;
+    let match;
+
+    while ((match = createTableRegex.exec(cleanedSQL)) !== null) {
+        const tableName = match[1];
+        const tableBody = match[2].trim();
+
+        const table: {
+            name: string;
+            columns: SQLColumn[];
+            primaryKeyColumns?: string[];
+        } = {
+            name: tableName,
+            columns: [],
+            primaryKeyColumns: [],
+        };
+
+        // Special case: sqlite_sequence or tables with columns but no types
+        if (tableName === 'sqlite_sequence' || !tableBody.includes(' ')) {
+            // Parse simple column list without types (e.g., "name,seq")
+            const simpleColumns = tableBody.split(',').map((col) => col.trim());
+            for (const colName of simpleColumns) {
+                if (
+                    colName &&
+                    !colName.toUpperCase().startsWith('FOREIGN KEY') &&
+                    !colName.toUpperCase().startsWith('PRIMARY KEY') &&
+                    !colName.toUpperCase().startsWith('UNIQUE') &&
+                    !colName.toUpperCase().startsWith('CHECK') &&
+                    !colName.toUpperCase().startsWith('CONSTRAINT')
+                ) {
+                    table.columns.push({
+                        name: colName.replace(/["'`]/g, ''),
+                        type: 'TEXT', // Default to TEXT for untyped columns
+                        nullable: true,
+                        primaryKey: false,
+                        unique: false,
+                        default: '',
+                        increment: false,
+                    });
+                }
             }
-            inCreateTable = false;
-            currentTable = null;
-        }
-        // Process column definitions inside CREATE TABLE
-        else if (inCreateTable && currentTable && line.includes('"')) {
-            // Column line pattern optimized for user's DDL format
-            const columnPattern = /\s*["'`](\w+)["'`]\s+([A-Za-z0-9_]+)(.+)?/i;
-            const match = columnPattern.exec(line);
+        } else {
+            // Parse normal table with typed columns
+            // Split by commas not inside parentheses
+            const columnDefs = [];
+            let current = '';
+            let parenDepth = 0;
 
-            if (match) {
-                const columnName = match[1];
-                const rawType = match[2].toUpperCase();
-                const restOfLine = match[3] || '';
+            for (let i = 0; i < tableBody.length; i++) {
+                const char = tableBody[i];
+                if (char === '(') parenDepth++;
+                else if (char === ')') parenDepth--;
+                else if (char === ',' && parenDepth === 0) {
+                    columnDefs.push(current.trim());
+                    current = '';
+                    continue;
+                }
+                current += char;
+            }
+            if (current.trim()) {
+                columnDefs.push(current.trim());
+            }
 
-                // Determine column properties
-                const isPrimaryKey = restOfLine
-                    .toUpperCase()
-                    .includes('PRIMARY KEY');
-                const isNotNull = restOfLine.toUpperCase().includes('NOT NULL');
-                const isUnique = restOfLine.toUpperCase().includes('UNIQUE');
+            for (const columnDef of columnDefs) {
+                const line = columnDef.trim();
+                const upperLine = line.toUpperCase();
 
-                // Extract default value
-                let defaultValue = '';
-                const defaultMatch = /DEFAULT\s+([^,\s)]+)/i.exec(restOfLine);
-                if (defaultMatch) {
-                    defaultValue = defaultMatch[1];
+                // Handle table-level PRIMARY KEY constraint
+                // Matches: PRIMARY KEY (col1, col2) or CONSTRAINT name PRIMARY KEY (col1, col2)
+                if (
+                    upperLine.startsWith('PRIMARY KEY') ||
+                    (upperLine.startsWith('CONSTRAINT') &&
+                        upperLine.includes('PRIMARY KEY'))
+                ) {
+                    const pkMatch = line.match(/PRIMARY\s+KEY\s*\(([^)]+)\)/i);
+                    if (pkMatch) {
+                        const pkCols = pkMatch[1]
+                            .split(',')
+                            .map((c) => c.trim().replace(/["'`]/g, ''));
+                        table.primaryKeyColumns = pkCols;
+                    }
+                    continue;
                 }
 
-                // Map to appropriate SQLite storage class
-                let columnType = rawType;
-                if (rawType === 'INTEGER' || rawType === 'INT') {
-                    columnType = 'INTEGER';
-                } else if (
-                    ['REAL', 'FLOAT', 'DOUBLE', 'NUMERIC', 'DECIMAL'].includes(
-                        rawType
-                    )
+                // Skip other constraints
+                if (
+                    upperLine.startsWith('FOREIGN KEY') ||
+                    upperLine.startsWith('UNIQUE') ||
+                    upperLine.startsWith('CHECK') ||
+                    upperLine.startsWith('CONSTRAINT')
                 ) {
-                    columnType = 'REAL';
-                } else if (rawType === 'BLOB' || rawType === 'BINARY') {
-                    columnType = 'BLOB';
-                } else if (
-                    ['TIMESTAMP', 'DATETIME', 'DATE'].includes(rawType)
-                ) {
-                    columnType = 'TIMESTAMP';
-                } else {
-                    columnType = 'TEXT';
+                    continue;
                 }
 
-                // Add column to the table
-                currentTable.columns.push({
-                    name: columnName,
-                    type: columnType,
-                    nullable: !isNotNull,
-                    primaryKey: isPrimaryKey,
-                    unique: isUnique || isPrimaryKey,
-                    default: defaultValue,
-                    increment: isPrimaryKey && columnType === 'INTEGER',
-                });
+                // Parse column: handle both quoted and unquoted identifiers
+                // Pattern: [quotes]columnName[quotes] dataType [constraints]
+                const columnPattern = /^["'`]?([\w]+)["'`]?\s+(\w+)(.*)$/i;
+                const columnMatch = columnPattern.exec(line);
+
+                if (columnMatch) {
+                    const columnName = columnMatch[1];
+                    const rawType = columnMatch[2].toUpperCase();
+                    const restOfLine = columnMatch[3] || '';
+                    const upperRest = restOfLine.toUpperCase();
+
+                    // Determine column properties
+                    const isPrimaryKey = upperRest.includes('PRIMARY KEY');
+                    const isAutoIncrement = upperRest.includes('AUTOINCREMENT');
+                    const isNotNull =
+                        upperRest.includes('NOT NULL') || isPrimaryKey;
+                    const isUnique =
+                        upperRest.includes('UNIQUE') || isPrimaryKey;
+
+                    // Extract default value
+                    let defaultValue = '';
+                    const defaultMatch = /DEFAULT\s+([^,)]+)/i.exec(restOfLine);
+                    if (defaultMatch) {
+                        defaultValue = defaultMatch[1].trim();
+                        // Remove quotes if present
+                        if (
+                            (defaultValue.startsWith("'") &&
+                                defaultValue.endsWith("'")) ||
+                            (defaultValue.startsWith('"') &&
+                                defaultValue.endsWith('"'))
+                        ) {
+                            defaultValue = defaultValue.slice(1, -1);
+                        }
+                    }
+
+                    // Map to appropriate SQLite storage class
+                    let columnType = rawType;
+                    if (rawType === 'INTEGER' || rawType === 'INT') {
+                        columnType = 'INTEGER';
+                    } else if (
+                        [
+                            'REAL',
+                            'FLOAT',
+                            'DOUBLE',
+                            'NUMERIC',
+                            'DECIMAL',
+                        ].includes(rawType)
+                    ) {
+                        columnType = 'REAL';
+                    } else if (rawType === 'BLOB' || rawType === 'BINARY') {
+                        columnType = 'BLOB';
+                    } else if (
+                        ['TIMESTAMP', 'DATETIME', 'DATE', 'TIME'].includes(
+                            rawType
+                        )
+                    ) {
+                        columnType = 'TIMESTAMP';
+                    } else if (
+                        ['TEXT', 'VARCHAR', 'CHAR', 'CLOB', 'STRING'].includes(
+                            rawType
+                        ) ||
+                        rawType.startsWith('VARCHAR') ||
+                        rawType.startsWith('CHAR')
+                    ) {
+                        columnType = 'TEXT';
+                    } else {
+                        // Default to TEXT for unknown types
+                        columnType = 'TEXT';
+                    }
+
+                    // Add column to the table
+                    table.columns.push({
+                        name: columnName,
+                        type: columnType,
+                        nullable: !isNotNull,
+                        primaryKey: isPrimaryKey,
+                        unique: isUnique,
+                        default: defaultValue,
+                        increment:
+                            isPrimaryKey &&
+                            isAutoIncrement &&
+                            columnType === 'INTEGER',
+                    });
+                }
             }
+        }
+
+        // Apply table-level PRIMARY KEY constraint to columns
+        if (table.primaryKeyColumns && table.primaryKeyColumns.length > 0) {
+            const isSingleColumnPK = table.primaryKeyColumns.length === 1;
+            for (const col of table.columns) {
+                if (table.primaryKeyColumns.includes(col.name)) {
+                    col.primaryKey = true;
+                    // Only mark as unique if single-column PK
+                    if (isSingleColumnPK) {
+                        col.unique = true;
+                    }
+                    // In SQLite, INTEGER PRIMARY KEY is auto-incrementing
+                    if (col.type.toLowerCase() === 'integer') {
+                        col.increment = true;
+                    }
+                }
+            }
+        }
+
+        if (table.columns.length > 0 || tableName === 'sqlite_sequence') {
+            tables.push(table);
         }
     }
 
@@ -390,12 +582,16 @@ function processCreateTableStatement(
                 // Process constraint definition
                 const constraintDef = def as ConstraintDefinition;
 
+                // Get columns from either columns or definition.columns
+                const constraintColumns =
+                    constraintDef.columns || constraintDef.definition?.columns;
+
                 // Process PRIMARY KEY constraint
                 if (
                     constraintDef.constraint_type === 'primary key' &&
-                    constraintDef.columns
+                    constraintColumns
                 ) {
-                    primaryKeyColumns = constraintDef.columns
+                    primaryKeyColumns = constraintColumns
                         .map(extractColumnName)
                         .filter(Boolean);
                 }
@@ -403,9 +599,9 @@ function processCreateTableStatement(
                 // Process UNIQUE constraint
                 if (
                     constraintDef.constraint_type === 'unique' &&
-                    constraintDef.columns
+                    constraintColumns
                 ) {
-                    const uniqueColumns = constraintDef.columns
+                    const uniqueColumns = constraintColumns
                         .map(extractColumnName)
                         .filter(Boolean);
 
@@ -427,9 +623,15 @@ function processCreateTableStatement(
 
     // Update primary key flags in columns
     if (primaryKeyColumns.length > 0) {
+        const isSingleColumnPK = primaryKeyColumns.length === 1;
         columns.forEach((column) => {
             if (primaryKeyColumns.includes(column.name)) {
                 column.primaryKey = true;
+
+                // Only mark as unique if single-column PK
+                if (isSingleColumnPK) {
+                    column.unique = true;
+                }
 
                 // In SQLite, INTEGER PRIMARY KEY is automatically an alias for ROWID (auto-incrementing)
                 if (column.type.toLowerCase() === 'integer') {

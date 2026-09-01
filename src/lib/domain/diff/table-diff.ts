@@ -3,31 +3,36 @@ import type { DBTable } from '../db-table';
 
 export type TableDiffAttribute = keyof Pick<
     DBTable,
-    'name' | 'comments' | 'color'
+    'name' | 'comments' | 'color' | 'x' | 'y' | 'width'
 >;
 
 const tableDiffAttributeSchema: z.ZodType<TableDiffAttribute> = z.union([
     z.literal('name'),
     z.literal('comments'),
     z.literal('color'),
+    z.literal('x'),
+    z.literal('y'),
+    z.literal('width'),
 ]);
 
 export interface TableDiffChanged {
     object: 'table';
     type: 'changed';
     tableId: string;
+    newTableId: string;
     attribute: TableDiffAttribute;
-    oldValue?: string | null;
-    newValue?: string | null;
+    oldValue?: string | number | null;
+    newValue?: string | number | null;
 }
 
 export const TableDiffChangedSchema: z.ZodType<TableDiffChanged> = z.object({
     object: z.literal('table'),
     type: z.literal('changed'),
     tableId: z.string(),
+    newTableId: z.string(),
     attribute: tableDiffAttributeSchema,
-    oldValue: z.string().or(z.null()).optional(),
-    newValue: z.string().or(z.null()).optional(),
+    oldValue: z.union([z.string(), z.number(), z.null()]).optional(),
+    newValue: z.union([z.string(), z.number(), z.null()]).optional(),
 });
 
 export interface TableDiffRemoved {

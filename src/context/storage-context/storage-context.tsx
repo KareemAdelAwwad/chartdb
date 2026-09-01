@@ -7,11 +7,21 @@ import type { ChartDBConfig } from '@/lib/domain/config';
 import type { DBDependency } from '@/lib/domain/db-dependency';
 import type { Area } from '@/lib/domain/area';
 import type { DBCustomType } from '@/lib/domain/db-custom-type';
+import type { DiagramFilter } from '@/lib/domain/diagram-filter/diagram-filter';
+import type { Note } from '@/lib/domain/note';
 
 export interface StorageContext {
     // Config operations
     getConfig: () => Promise<ChartDBConfig | undefined>;
     updateConfig: (config: Partial<ChartDBConfig>) => Promise<void>;
+
+    // Diagram filter operations
+    getDiagramFilter: (diagramId: string) => Promise<DiagramFilter | undefined>;
+    updateDiagramFilter: (
+        diagramId: string,
+        filter: DiagramFilter
+    ) => Promise<void>;
+    deleteDiagramFilter: (diagramId: string) => Promise<void>;
 
     // Diagram operations
     addDiagram: (params: { diagram: Diagram }) => Promise<void>;
@@ -21,6 +31,7 @@ export interface StorageContext {
         includeDependencies?: boolean;
         includeAreas?: boolean;
         includeCustomTypes?: boolean;
+        includeNotes?: boolean;
     }) => Promise<Diagram[]>;
     getDiagram: (
         id: string,
@@ -30,6 +41,7 @@ export interface StorageContext {
             includeDependencies?: boolean;
             includeAreas?: boolean;
             includeCustomTypes?: boolean;
+            includeNotes?: boolean;
         }
     ) => Promise<Diagram | undefined>;
     updateDiagram: (params: {
@@ -126,11 +138,29 @@ export interface StorageContext {
     }) => Promise<void>;
     listCustomTypes: (diagramId: string) => Promise<DBCustomType[]>;
     deleteDiagramCustomTypes: (diagramId: string) => Promise<void>;
+
+    // Note operations
+    addNote: (params: { diagramId: string; note: Note }) => Promise<void>;
+    getNote: (params: {
+        diagramId: string;
+        id: string;
+    }) => Promise<Note | undefined>;
+    updateNote: (params: {
+        id: string;
+        attributes: Partial<Note>;
+    }) => Promise<void>;
+    deleteNote: (params: { diagramId: string; id: string }) => Promise<void>;
+    listNotes: (diagramId: string) => Promise<Note[]>;
+    deleteDiagramNotes: (diagramId: string) => Promise<void>;
 }
 
 export const storageInitialValue: StorageContext = {
     getConfig: emptyFn,
     updateConfig: emptyFn,
+
+    getDiagramFilter: emptyFn,
+    updateDiagramFilter: emptyFn,
+    deleteDiagramFilter: emptyFn,
 
     addDiagram: emptyFn,
     listDiagrams: emptyFn,
@@ -174,6 +204,14 @@ export const storageInitialValue: StorageContext = {
     deleteCustomType: emptyFn,
     listCustomTypes: emptyFn,
     deleteDiagramCustomTypes: emptyFn,
+
+    // Note operations
+    addNote: emptyFn,
+    getNote: emptyFn,
+    updateNote: emptyFn,
+    deleteNote: emptyFn,
+    listNotes: emptyFn,
+    deleteDiagramNotes: emptyFn,
 };
 
 export const storageContext =
